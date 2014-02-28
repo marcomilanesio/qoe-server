@@ -1,1 +1,3 @@
 *.pyc
+temp_query.sql
+diagLocal.sh

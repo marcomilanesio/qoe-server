@@ -18,15 +18,14 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from DBConn import DBConn
 import datetime
+import logging
 from datetime import timedelta
+from DBConn import DBConn
 from Cusum import Cusum
 from DiagnosisStructures import Probe, Ping, Trace, Step
-import logging
 
 logger = logging.getLogger('Diagnosis')
-
 
 class DiagnosisServer():
     def __init__(self, dbconn, clientid, clientip, url):
@@ -69,11 +68,13 @@ class DiagnosisServer():
         return tot
    
     def _retrieve_probe_data(self, probe):
-        query = '''select distinct on (p.session_start,p.sid) p.* from %s p inner join %s c on (p.clientid = c.clientid) where c.clientid = %d and c.session_url like '%s';
-        ''' % (self.dbconn.get_table_names()['clienttable'], self.dbconn.get_table_names()['pingtable'], self.applicant.get_clientid(), self._add_wildcard_to_addr(probe.get_url()))
+        query = '''select * from %s where sid in (select distinct sid from %s where session_url like '%s' and clientid = %d);
+        ''' % (self.dbconn.get_table_names()['clienttable'], self.dbconn.get_table_names()['pingtable'], self._add_wildcard_to_addr(probe.get_url()), self.applicant.get_clientid())
         local_stats = self.dbconn.execute_query(query)
+        involved_sids = []
         for row in local_stats:
             sid = int(row[2])
+            involved_sids.append(sid)
             probe.add_stat_value(sid, 'session_start', row[3])
             probe.add_stat_value(sid, 't_idle', float(row[4]))
             probe.add_stat_value(sid, 't_tot', float(row[5]))
@@ -83,9 +84,10 @@ class DiagnosisServer():
             probe.add_stat_value(sid, 'cpu_perc', float(row[9]))
             probe.add_stat_value(sid, 'mem_perc', float(row[10]))
             probe.add_stat_value(sid, 'page_dim', int(row[11]))
-        query = '''select sid, remoteaddress, step_nr, step_address, rtt_avg from %s where clientid = %d and 
-        remoteaddress in (select remoteaddress from %s where session_url like '%s' and clientid = %d);
-        ''' % (self.dbconn.get_table_names()['tracetable'], probe.get_clientid(), self.dbconn.get_table_names()['pingtable'], self._add_wildcard_to_addr(probe.get_url()), probe.get_clientid())
+        
+        query = '''select sid, remoteaddress, step_nr, step_address, rtt_avg from %s where clientid = %d and sid in %s
+        ''' % (self.dbconn.get_table_names()['tracetable'], probe.get_clientid(), str(tuple(involved_sids)))
+        logger.debug(query)
         local_trace = self.dbconn.execute_query(query)
         for row in local_trace:
             sid = row[0]
@@ -97,8 +99,8 @@ class DiagnosisServer():
                 trace = Trace(self.applicant.get_clientid(), row[1], int(row[0]))
                 traces[sid] = [s]       
                 probe.set_trace(traces)
-        query = '''select sid, remoteaddress, ping_min, ping_max, ping_avg, ping_std from %s where clientid = %d and session_url like '%s';
-        ''' % (self.dbconn.get_table_names()['pingtable'], probe.get_clientid(), self._add_wildcard_to_addr(probe.get_url()))
+        query = '''select sid, remoteaddress, ping_min, ping_max, ping_avg, ping_std from %s where clientid = %d and sid in %s;
+        ''' % (self.dbconn.get_table_names()['pingtable'], probe.get_clientid(), str(tuple(involved_sids)))
         local_ping = self.dbconn.execute_query(query)
         for row in local_ping:
             sid = row[0]
@@ -115,7 +117,8 @@ class DiagnosisServer():
         tcp_th = float(self.thresholds['tcp_th'])
         dns_th = float(self.thresholds['dns_th'])
         
-        stats = self.applicant.get_stats() 
+        stats = self.applicant.get_stats()
+        logger.debug('applicant stats: (%d) sids involved: %s' % (len(stats.keys()), str(stats.keys())))
         ##['mem_perc', 't_idle', 'session_start', 't_http', 'page_dim', 't_tcp', 't_dns', 't_tot', 'cpu_perc']
         results = {}
         for sid in stats.keys():
@@ -147,8 +150,10 @@ class DiagnosisServer():
         res = self.dbconn.execute_query(query)
         probes_on_lan = [int(r[0]) for r in res]
         if len(probes_on_lan) == 0:
+            logger.debug('%d is the only known probe on its LAN' % self.applicant.get_clientid())
             return 'all', probes_on_lan
-        tmp = str(probes_on_lan).replace("[","(").replace("]",")")
+        
+        tmp = str(tuple(probes_on_lan))
         query = '''select result from %s where clientid in %s;
         ''' % (self.dbconn.get_table_names()['diagnosistable'], tmp)
         res = self.dbconn.execute_query(query)
@@ -160,7 +165,7 @@ class DiagnosisServer():
             return 'some', probes_on_lan
     
     
-    def __get_rtt_hop(self, probe, hop_nr):
+    def _get_rtt_hop(self, probe, hop_nr):
         hop_rtt = []
         for sid in probe.get_traces().keys():
             hop_rtt.extend([s.get_rtt_step() for s in probe.get_traces()[sid] if s.get_step_nr() == hop_nr])
@@ -173,25 +178,25 @@ class DiagnosisServer():
         return diff
     
     def check_gw_lan(self, probes):
-        t1hop = self.__get_rtt_hop(self.applicant, 1)
+        t1hop = self._get_rtt_hop(self.applicant, 1)
         cusum = Cusum()
         cusum_result = cusum.compute(t1hop)
         diagnosis = '0'
         if cusum_result:
             diagnosis = 'gw'
             for p in probes:
-                p1hop = self.__get_rtt_hop(p, 1)
+                p1hop = self._get_rtt_hop(p, 1)
                 if cusum.compute(p1hop):
                     diagnosis = 'lan congestion'
             cs_new = cusum.adjust_th(cusum_result)
             if cs_new > -1:
                 logger.info('Cusum threshold changed to: %s' % str(cs_new))
         else:
-            t2hop = self.__get_rtt_hop(self.applicant, 2)
-            t3hop = self.__get_rtt_hop(self.applicant, 3)
+            t2hop = self._get_rtt_hop(self.applicant, 2)
+            t3hop = self._get_rtt_hop(self.applicant, 3)
             for p in probes:
-                p2hop = self.__get_rtt_hop(p, 2)
-                p3hop = self.__get_rtt_hop(p, 3)
+                p2hop = self._get_rtt_hop(p, 2)
+                p3hop = self._get_rtt_hop(p, 3)
                 t2hop.extend(p2hop)
                 t3hop.extend(p3hop)
                 
@@ -225,7 +230,6 @@ class DiagnosisServer():
             self._retrieve_probe_data(p)
             probes.append(p)
         
-        #print 'probes: ', probes
         if res == 'all':
             return self.check_gw_lan(probes)
         elif res == 'none':
@@ -235,10 +239,13 @@ class DiagnosisServer():
         
 
 if __name__ == '__main__':
+    import sys
+    import logging.config
+    logging.config.fileConfig('logging.conf')
+    logger = logging.getLogger('Diagnosis')
+    url = sys.argv[1]
+    clientid = int(sys.argv[2])
+    clientip = sys.argv[3]
     db = DBConn()
-    db.create_tables()
-    url = 'www.google.com'
-    clientid = 453982341
-    clientip = '127.0.0.1'
     d = DiagnosisServer(db, clientid, clientip, url)
-    print d.get_result(6)
+    d.get_result(6)
