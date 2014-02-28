@@ -87,7 +87,6 @@ class DiagnosisServer():
         
         query = '''select sid, remoteaddress, step_nr, step_address, rtt_avg from %s where clientid = %d and sid in %s
         ''' % (self.dbconn.get_table_names()['tracetable'], probe.get_clientid(), str(tuple(involved_sids)))
-        logger.debug(query)
         local_trace = self.dbconn.execute_query(query)
         for row in local_trace:
             sid = row[0]
@@ -118,7 +117,7 @@ class DiagnosisServer():
         dns_th = float(self.thresholds['dns_th'])
         
         stats = self.applicant.get_stats()
-        logger.debug('applicant stats: (%d) sids involved: %s' % (len(stats.keys()), str(stats.keys())))
+        logger.info('applicant stats: (%d) sids involved: %s' % (len(stats.keys()), str(stats.keys())))
         ##['mem_perc', 't_idle', 'session_start', 't_http', 'page_dim', 't_tcp', 't_dns', 't_tot', 'cpu_perc']
         results = {}
         for sid in stats.keys():
