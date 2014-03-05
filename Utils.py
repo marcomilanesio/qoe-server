@@ -1,6 +1,9 @@
 #!/usr/bin/python
 
 def checkURL(url):
+    """
+    Check if param url is valid
+    """
     import httplib
     import urlparse
     protocol = urlparse.urlsplit(url)[0]
@@ -24,8 +27,3 @@ def checkURL(url):
         return True
 
     return False
-
-
-if __name__ == '__main__':
-    url = 'wwww.google.com'
-    print checkURL(url)
