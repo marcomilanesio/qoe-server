@@ -1,3 +1,4 @@
 *.pyc
+*.BKP
 temp_query.sql
 diagLocal.sh
