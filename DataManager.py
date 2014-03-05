@@ -30,7 +30,7 @@ class DataManager():
         self.dbconn = dbconn
         #self.dbconn.create_tables()
         
-    def __insert_ping_data(self, clientid, clientip, ping_dic):
+    def _insert_ping_data(self, clientid, clientip, ping_dic):
         sid = int(ping_dic['sid'])
         session_url = ping_dic['session_url'] 
         remoteaddress = str(ping_dic['remoteaddress'])
@@ -41,10 +41,10 @@ class DataManager():
         query = '''insert into %s (clientID, sid, clientIP, session_url, remoteaddress, ping_min, ping_max, ping_avg, ping_std) values (%d, %d, '%s', '%s', '%s', %s, %s, %s, %s)
         ''' % (self.dbconn.get_table_names()['pingtable'], clientid, sid, clientip, session_url, remoteaddress, ping_min, ping_max, ping_avg, ping_std)
         self.dbconn.insert_data_to_db(query)
-        logger.debug('Inserted ping from probe id [%d] to [%s]' % (clientid, remoteaddress))
+        logger.info('Inserted ping from probe id [%d] to [%s]' % (clientid, remoteaddress))
         
 
-    def __insert_trace_data(self, clientid, trace_list_of_dic):
+    def _insert_trace_data(self, clientid, trace_list_of_dic):
         for dic in trace_list_of_dic:
             remoteaddress = dic['remoteaddress'] 
             sid = int(dic['sid'])
@@ -64,15 +64,14 @@ class DataManager():
                 values (%d, %d, '%s', %d, '%s', %s, %s, %s, %s)
                 ''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr, step_addr, min_, max_, avg_, std_)
             self.dbconn.insert_data_to_db(query)
-        logger.debug('Inserted trace from probe id [%d] to [%s]' % (clientid, remoteaddress))
+        logger.info('Inserted trace from probe id [%d] to [%s]' % (clientid, remoteaddress))
         
     def insert_data(self, jsondata, client_ip):
         clientid = int(jsondata['clientid'])
         ping = jsondata['ping']
         trace = jsondata['trace'] #list of dic
-        self.__insert_ping_data(clientid, client_ip, ping)
-        self.__insert_trace_data(clientid, trace)
-
+        self._insert_ping_data(clientid, client_ip, ping)
+        self._insert_trace_data(clientid, trace)
 
     def insert_local_data(self, local_data):
         clientid = int(local_data['clientid'])
@@ -92,4 +91,4 @@ class DataManager():
             values (%d, %d, '%s', %s, %s, %s, %s, %s, %s, %s, %s)
             ''' % (self.dbconn.get_table_names()['clienttable'], int(clientid), int(k), start_time, idle_time, tot_time, http_time, tcp_time, dns_time, cpu_perc, mem_perc, page_dim )
             self.dbconn.insert_data_to_db(query)
-            logger.debug('Inserted local stats from probe [%d]' % clientid)
+            logger.info('Inserted local stats from probe [%d]' % clientid)

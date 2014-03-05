@@ -50,11 +50,13 @@ class DiagnosisServer():
     def save_result(self, sid, result):
         query = '''insert into %s values (now(), %d, %d, '%s','%s')
         ''' % (self.dbconn.get_table_names()['diagnosistable'],self.applicant.get_clientid(), sid, str(self.applicant.get_stats()[str(sid)]['session_start']),result)
+        #print query
         self.dbconn.insert_data_to_db(query)
     
     def get_result(self, time_range):
         tot = []
         applicant_result = self.diagnose_applicant()
+        exit('')
         if applicant_result:
             for k in applicant_result.keys():
                 self.save_result(int(k), applicant_result[k])
@@ -116,21 +118,29 @@ class DiagnosisServer():
         tcp_th = float(self.thresholds['tcp_th'])
         dns_th = float(self.thresholds['dns_th'])
         
-        stats = self.applicant.get_stats()
+        stats = self.applicant.get_stats()        
         logger.info('applicant stats: (%d) sids involved: %s' % (len(stats.keys()), str(stats.keys())))
         ##['mem_perc', 't_idle', 'session_start', 't_http', 'page_dim', 't_tcp', 't_dns', 't_tot', 'cpu_perc']
         results = {}
-        for sid in stats.keys():
+        tmp = map(int, stats.keys())
+        tmp.sort()
+        ordered_keys = map(str, tmp)
+        print self.applicant.get_clientid()
+        for sid in ordered_keys:
             stat = stats[sid]
             if (float(stat['t_idle'] / stat['t_tot']) > time_th) or (stat['cpu_perc'] > cpu_th):
                 results[sid] = 'local client'
+                logger.debug('sid: %d = t_idle: %.3f, t_tot: %.3f [%.3f (th.%.2f)]; cpu_perc: %.3f (%.3f) = %s' % (int(sid), stat['t_idle'], stat['t_tot'], float(stat['t_idle'] / stat['t_tot']), time_th, stat['cpu_perc'],cpu_th, results[sid]))
             if stat['t_http'] < http_th:
                 if stat['page_dim'] > dim_th:
                     results[sid] = 'page too big'
+                    logger.debug('sid: %d = t_idle: %.3f, t_tot: %.3f [%.3f (th.%.2f)]; cpu_perc: %.3f (%.3f), t_http: %.3f, page_dim: %.3f = %s' % (int(sid), stat['t_idle'], stat['t_tot'], float(stat['t_idle'] / stat['t_tot']), time_th, stat['cpu_perc'],cpu_th, stat['t_http'], stat['page_dim'], results[sid]))
                 if stat['t_tcp'] > tcp_th:
                     results[sid] = 'web server too far'
+                    logger.debug('sid: %d = t_idle: %.3f, t_tot: %.3f [%.3f (th.%.2f)]; cpu_perc: %.3f (%.3f), t_http: %.3f, page_dim: %.3f = %s' % (int(sid), stat['t_idle'], stat['t_tot'], float(stat['t_idle'] / stat['t_tot']), time_th, stat['cpu_perc'],cpu_th, stat['t_http'], stat['t_tcp'], results[sid]))
                 if stat['t_dns'] > dns_th:
                     results[sid] = 'dns problem'
+                    logger.debug('sid: %d = t_idle: %.3f, t_tot: %.3f [%.3f (th.%.2f)]; cpu_perc: %.3f (%.3f), t_http: %.3f, page_dim: %.3f = %s' % (int(sid), stat['t_idle'], stat['t_tot'], float(stat['t_idle'] / stat['t_tot']), time_th, stat['cpu_perc'],cpu_th, stat['t_http'], stat['t_dns'], results[sid]))
             else:
                 results[sid] = None
         
