@@ -130,7 +130,6 @@ class DiagnosisServer():
         tmp = map(int, stats.keys())
         tmp.sort()
         ordered_keys = map(str, tmp)
-        print self.applicant.get_clientid()
         for sid in ordered_keys:
             stat = stats[sid]
             if (float(stat['t_idle'] / stat['t_tot']) > time_th) or (stat['cpu_perc'] > cpu_th):
@@ -158,16 +157,19 @@ class DiagnosisServer():
         assert len(res) == 1
         return res[0][0]
     
-    def __get_probes_on_lan(self, gw):
+    def _get_probes_on_lan(self, gw):
         query = '''select distinct on (clientid) clientid from %s where clientid != %d and step_nr = 1 and step_address = '%s';
         ''' % (self.dbconn.get_table_names()['tracetable'], self.applicant.get_clientid(), gw)
         res = self.dbconn.execute_query(query)
         probes_on_lan = [int(r[0]) for r in res]
         if len(probes_on_lan) == 0:
             logger.debug('%d is the only known probe on its LAN' % self.applicant.get_clientid())
-            return 'all', probes_on_lan
+            return 'all', [self.applicant.get_clientid()]
         
-        tmp = str(tuple(probes_on_lan))
+        if len(probes_on_lan) == 1:
+            tmp = '(' + probes_on_lan[0] + ')'
+        else:
+            tmp = str(tuple(probes_on_lan))
         query = '''select result from %s where clientid in %s;
         ''' % (self.dbconn.get_table_names()['diagnosistable'], tmp)
         res = self.dbconn.execute_query(query)
@@ -237,7 +239,7 @@ class DiagnosisServer():
     def diagnose_lan(self):
         diagnosis = ''
         gw = self._get_gw()
-        res, id_probes_on_lan = self.__get_probes_on_lan(gw)
+        res, id_probes_on_lan = self._get_probes_on_lan(gw)
         probes = []
         for probeid in id_probes_on_lan:
             p = Probe(probeid)
