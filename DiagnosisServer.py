@@ -87,8 +87,13 @@ class DiagnosisServer():
             probe.add_stat_value(sid, 'mem_perc', float(row[10]))
             probe.add_stat_value(sid, 'page_dim', int(row[11]))
         
+        if len(involved_sids) == 1:
+            tup = '(' + involved_sids[0] + ')'
+        else:
+            tup = str(tuple(involved_sids))
+            
         query = '''select sid, remoteaddress, step_nr, step_address, rtt_avg from %s where clientid = %d and sid in %s
-        ''' % (self.dbconn.get_table_names()['tracetable'], probe.get_clientid(), str(tuple(involved_sids)))
+        ''' % (self.dbconn.get_table_names()['tracetable'], probe.get_clientid(), tup)
         local_trace = self.dbconn.execute_query(query)
         for row in local_trace:
             sid = row[0]
@@ -101,7 +106,7 @@ class DiagnosisServer():
                 traces[sid] = [s]       
                 probe.set_trace(traces)
         query = '''select sid, remoteaddress, ping_min, ping_max, ping_avg, ping_std from %s where clientid = %d and sid in %s;
-        ''' % (self.dbconn.get_table_names()['pingtable'], probe.get_clientid(), str(tuple(involved_sids)))
+        ''' % (self.dbconn.get_table_names()['pingtable'], probe.get_clientid(), tup)
         local_ping = self.dbconn.execute_query(query)
         for row in local_ping:
             sid = row[0]
