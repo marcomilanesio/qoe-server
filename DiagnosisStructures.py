@@ -49,7 +49,11 @@ class Trace():
         self.steps[str(step.get_step_nr())] = step
     
     def get_step_number(self, nr):
-        return self.steps[str(nr)]
+        if str(nr) in self.steps.keys():
+            return self.steps[str(nr)]
+        else:
+            tmp = map(int, self.steps.keys())
+            return self.steps[str(max(tmp))]
 
 class Ping():
     def __init__(self, sid, target, min_, max_, avg, std):
