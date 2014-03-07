@@ -51,7 +51,7 @@ class JSONServerHandler(SocketServer.StreamRequestHandler):
                 time_range = received['time_range']
                 #print 'time_range:' , time_range
                 try:
-                    if Utils.checkURL(url_to_diagnose):
+                    if Utils.check_url(url_to_diagnose):
                         logger.debug('URL validated')
                         ds = DiagnosisServer(dbconn, clientid, clientip, url_to_diagnose)
                         res = ds.get_result(time_range)

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-def checkURL(url):
+def check_url(url):
     """
     Check if param url is valid
     """
@@ -27,3 +27,16 @@ def checkURL(url):
         return True
 
     return False
+
+
+def order_numerical_keys(dic):
+    tmp = map(int, dic.keys())
+    tmp.sort()
+    ordered_keys = map(str, tmp)
+    return ordered_keys
+
+
+def add_wildcard_to_url(url):
+    if len(url) == 0:
+        return '%'
+    return '%'+url.strip()+'%'
