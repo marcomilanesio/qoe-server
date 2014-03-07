@@ -30,25 +30,14 @@ class Step():
     def get_step_address(self):
         return self.step_address
     
-    def get_rtt_step(self):
+    def get_rtt(self):
         return self.rtt
-    
-    def __str__(self):
-        s = '%d - %s - %f' % (self.step_nr, self.step_address, self.rtt)
-        return s
+
 
 class Trace():
-    def __init__(self, probe, target, sid):
-        self.probe = probe
+    def __init__(self, target):
         self.target = target
-        self.sid = sid
-        self.steps = []
-    
-    def get_probe(self):
-        return self.probe
-        
-    def get_sid(self):
-        return self.sid
+        self.steps = {}
     
     def get_target(self):
         return self.target
@@ -57,16 +46,23 @@ class Trace():
         return self.steps
     
     def add_step(self, step):
-        self.step.append(step)
+        self.steps[str(step.get_step_nr())] = step
     
+    def get_step_number(self, nr):
+        return self.steps[str(nr)]
+
 class Ping():
-    def __init__(self, target, min_, max_, avg, std):
+    def __init__(self, sid, target, min_, max_, avg, std):
+        self.sid = sid
         self.target = target
         self.min_ = min_
         self.max_ = max_
         self.avg_ = avg
         self.std_ = std
     
+    def get_sid(self):
+        return self.sid
+        
     def get_min(self):
         return self.min_
     
@@ -84,13 +80,17 @@ class Ping():
         
         
 class Probe():
-    def __init__(self, clientid, clientip='', url=''):
+    def __init__(self, clientid, clientip=''):
         self.clientid = clientid
         self.clientip = clientip
         self.traces = {}
         self.stats = {}
-        self.url = url
         self.pings = {}
+    
+    def add_trace(self, sid, trace):
+        if str(sid) not in self.traces.keys():
+            self.traces[str(sid)] = []
+        self.traces[str(sid)].append(trace)
     
     def get_clientid(self):
         return self.clientid
@@ -103,14 +103,6 @@ class Probe():
     
     def get_stats(self):
         return self.stats
-    
-    def get_url(self):
-        return self.url
-    
-    def add_trace(self, sid, trace):
-        if str(sid) not in self.traces.keys():
-            self.traces[str(sid)] = []
-        self.traces[str(sid)].append(trace)
     
     def set_trace(self, traces):
         self.traces = traces
@@ -129,8 +121,3 @@ class Probe():
         res = [int(x) for x in self.stats.keys()]
         return res
         
-    def __str__(self):
-        return str(self.pings)
-        #return str(self.traces)
-        #return str(self.stats)
-    
