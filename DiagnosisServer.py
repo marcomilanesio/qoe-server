@@ -56,7 +56,6 @@ class DiagnosisServer():
     def get_result(self, time_range):
         tot = []
         applicant_result = self.diagnose_applicant()
-        exit('')
         if applicant_result:
             for k in applicant_result.keys():
                 self.save_result(int(k), applicant_result[k])
@@ -88,7 +87,7 @@ class DiagnosisServer():
             probe.add_stat_value(sid, 'page_dim', int(row[11]))
         
         if len(involved_sids) == 1:
-            tup = '(' + involved_sids[0] + ')'
+            tup = '( %d )' % involved_sids[0]
         else:
             tup = str(tuple(involved_sids))
             
@@ -133,17 +132,17 @@ class DiagnosisServer():
         for sid in ordered_keys:
             stat = stats[sid]
             if (float(stat['t_idle'] / stat['t_tot']) > time_th) or (stat['cpu_perc'] > cpu_th):
-                results[sid] = 'local client'
+                results[sid] = 'local client: %s' % ('t_idle/t_tot > %.2f' % time_th if (float(stat['t_idle'] / stat['t_tot']) > time_th) else 'cpu_perc > %.2f' % cpu_th)
                 logger.debug('sid: %d = t_idle: %.3f, t_tot: %.3f [%.3f (th.%.2f)]; cpu_perc: %.3f (%.3f) = %s' % (int(sid), stat['t_idle'], stat['t_tot'], float(stat['t_idle'] / stat['t_tot']), time_th, stat['cpu_perc'],cpu_th, results[sid]))
             if stat['t_http'] < http_th:
                 if stat['page_dim'] > dim_th:
-                    results[sid] = 'page too big'
+                    results[sid] = 'page too big: page_dim > %.2f' % dim_th
                     logger.debug('sid: %d = t_idle: %.3f, t_tot: %.3f [%.3f (th.%.2f)]; cpu_perc: %.3f (%.3f), t_http: %.3f, page_dim: %.3f = %s' % (int(sid), stat['t_idle'], stat['t_tot'], float(stat['t_idle'] / stat['t_tot']), time_th, stat['cpu_perc'],cpu_th, stat['t_http'], stat['page_dim'], results[sid]))
                 if stat['t_tcp'] > tcp_th:
-                    results[sid] = 'web server too far'
+                    results[sid] = 'web server too far: t_tcp > %.2f' % tcp_th
                     logger.debug('sid: %d = t_idle: %.3f, t_tot: %.3f [%.3f (th.%.2f)]; cpu_perc: %.3f (%.3f), t_http: %.3f, page_dim: %.3f = %s' % (int(sid), stat['t_idle'], stat['t_tot'], float(stat['t_idle'] / stat['t_tot']), time_th, stat['cpu_perc'],cpu_th, stat['t_http'], stat['t_tcp'], results[sid]))
                 if stat['t_dns'] > dns_th:
-                    results[sid] = 'dns problem'
+                    results[sid] = 'dns problem: t_dns > %.2f' % dns_th
                     logger.debug('sid: %d = t_idle: %.3f, t_tot: %.3f [%.3f (th.%.2f)]; cpu_perc: %.3f (%.3f), t_http: %.3f, page_dim: %.3f = %s' % (int(sid), stat['t_idle'], stat['t_tot'], float(stat['t_idle'] / stat['t_tot']), time_th, stat['cpu_perc'],cpu_th, stat['t_http'], stat['t_dns'], results[sid]))
             else:
                 results[sid] = None
