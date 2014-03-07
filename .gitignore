@@ -2,4 +2,4 @@
 *.BKP
 temp_query.sql
 diagLocal.sh
-server.conf
+*.conf
