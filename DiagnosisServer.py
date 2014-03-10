@@ -54,14 +54,14 @@ class DiagnosisServer():
     # to add: limit diagnosis in a certain time range
     def do_diagnosis(self, time_range=6):
         applicant_result = self.diagnose_applicant()
-        print 'app_result', applicant_result
-        exit()
+        for sid, result in applicant_result.iteritems():
+            self.save_result(int(sid), result)
+        logger.info('Result saved: %d sessions for probe %d' % (len(applicant_result.keys()), self.applicant.get_clientid()))
     
     def save_result(self, sid, result):
         query = '''insert into %s values (now(), %d, %d, '%s','%s')
         ''' % (self.dbconn.get_table_names()['diagnosistable'],self.applicant.get_clientid(), sid, str(self.applicant.get_stats()[str(sid)]['session_start']),result)
-        print query
-        #self.dbconn.insert_data_to_db(query)
+        self.dbconn.insert_data_to_db(query)
     
             
     def _retrieve_probe_data(self, probe):
@@ -161,41 +161,59 @@ class DiagnosisServer():
         gw = self._get_gw()
         logger.debug('Gateway: %s' % gw)
         t1hop = self._get_rtt_hop_nr(self.applicant, 1)
-        logger.debug('hop to gw: %s - %d' % (str(t1hop), len(t1hop)))
+        #logger.debug('hop to gw: %s - %d' % (str(t1hop), len(t1hop)))
         probes_on_lan = self._get_probes_on_lan(gw)
         logger.debug('found %d probes using gateway: %s' % (len(probes_on_lan), gw))
         cusum = Cusum()
         cusum_result = cusum.compute(t1hop)
         if cusum_result:
-            diagnosis = 'gw'
+            logger.debug('cusum computed on 1st hop (gw)')
+            diagnosis = 'gw (cusum on gw)'
             count = 0
-            for p in probes_on_lan:
-                p1hop = self._get_rtt_hop_nr(p,1)
-                if cusum.compute(p1hop):
-                    count += 1
-            if count > 0: # at least another probe
-                diagnosis = 'lan congestion'
-            cs_new = cusum.adjust_th(cusum_result)
-            if cs_new > -1:
-                logger.info('Cusum threshold changed to: %s' % str(cs_new))
+            if len(probes_on_lan) > 1:
+                for p in probes_on_lan:
+                    p1hop = self._get_rtt_hop_nr(p,1)
+                    if cusum.compute(p1hop):
+                        count += 1
+                if count > 0: # at least another probe
+                    logger.debug( '%d probes in lan: lan congestion' % count )
+                    diagnosis = 'lan congestion (cusum on gw)'
+                cs_new = cusum.adjust_th(cusum_result)
+                if cs_new > -1:
+                    logger.info('Cusum threshold changed to: %s' % str(cs_new))
         else:
             t2hop = self._get_rtt_hop_nr(self.applicant, 2)
             t3hop = self._get_rtt_hop_nr(self.applicant, 3)
-            for p in probes_on_lan:
-                t2hop.extend(self._get_rtt_hop_nr(p,2))
-                t3hop.extend(self._get_rtt_hop_nr(p,3))
+            if len(probes_on_lan) > 1:
+                for p in probes_on_lan:
+                    t2hop.extend(self._get_rtt_hop_nr(p,2))
+                    t3hop.extend(self._get_rtt_hop_nr(p,3))
                 
             delta1 = [x-y for x,y in zip(t2hop, t1hop)]
             delta2 = [x-y for x,y in zip(t3hop, t2hop)]
-            
+            logger.debug('delta1: ', str(delta1))
+            logger.debug('delta2: ', str(delta2))
             if cusum.compute(delta1):
+                logger.debug('cusum computed on t2 - t1')
                 if cusum.compute(delta2):
-                    diagnosis = 'lan congestion'
+                    logger.debug('cusum computed on t3 - t2: lan congestion')
+                    diagnosis = 'lan congestion (cusum on t3-t2-t1)'
                 else:
-                    diagnosis = 'gw'
+                    logger.debug('only t2 - t1: gw')
+                    diagnosis = 'gw (cusum on t2-t1)'
             else:
+                logger.debug('no t2 - t1: gw')
                 diagnosis = 'gw'
         
+        if not diagnosis:
+            diff_http_tcp.extend = []
+            for p in probes_on_lan:
+                diff_http_tcp.extend(_get_thttp_minus_ttcp (p))
+            if cusum(diff_http_tcp):
+                diagnosis = 'remote web server'
+            else:
+                diagnosis = 'network'
+            
         return diagnosis
         
     
@@ -215,11 +233,14 @@ class DiagnosisServer():
     
     def _get_probes_on_lan(self, gw):
         probes = []
-        query = '''select distinct on (clientid) clientid from %s where clientid != %d and step_nr = 1 and step_address = '%s';
-        ''' % (self.dbconn.get_table_names()['tracetable'], self.applicant.get_clientid(), gw)
+        #query = '''select distinct on (clientid) clientid from %s where clientid != %d and step_nr = 1 and step_address = '%s';
+        #''' % (self.dbconn.get_table_names()['tracetable'], self.applicant.get_clientid(), gw)
+        
+        query = '''select distinct on (clientid) clientid from %s where step_nr = 1 and step_address = '%s';
+        ''' % (self.dbconn.get_table_names()['tracetable'], gw)
         res = self.dbconn.execute_query(query)
         probes = [int(r[0]) for r in res]
-        if len(probes) == 0:
+        if len(probes) == 1 and probes[0] == self.applicant.get_clientid():
             logger.debug('%d is the only known probe on its LAN' % self.applicant.get_clientid())
         return probes
             
