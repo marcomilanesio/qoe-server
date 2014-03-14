@@ -162,16 +162,16 @@ class DiagnosisServer():
         logger.debug('Gateway: %s' % gw)
         t1hop = self._get_rtt_hop_nr(self.applicant, 1)
         #logger.debug('hop to gw: %s - %d' % (str(t1hop), len(t1hop)))
-        probes_on_lan = self._get_probes_on_lan(gw)
-        logger.debug('found %d probes using gateway: %s' % (len(probes_on_lan), gw))
+        self.probes_on_lan = self._get_probes_on_lan(gw)
+        logger.debug('found %d probes using gateway: %s' % (len(self.probes_on_lan), gw))
         cusum = Cusum()
         cusum_result = cusum.compute(t1hop)
         if cusum_result:
             logger.debug('cusum computed on 1st hop (gw)')
             diagnosis = 'gw (cusum on gw)'
             count = 0
-            if len(probes_on_lan) > 1:
-                for p in probes_on_lan:
+            if len(self.probes_on_lan) > 1:
+                for p in self.probes_on_lan:
                     p1hop = self._get_rtt_hop_nr(p,1)
                     if cusum.compute(p1hop):
                         count += 1
@@ -184,8 +184,8 @@ class DiagnosisServer():
         else:
             t2hop = self._get_rtt_hop_nr(self.applicant, 2)
             t3hop = self._get_rtt_hop_nr(self.applicant, 3)
-            if len(probes_on_lan) > 1:
-                for p in probes_on_lan:
+            if len(self.probes_on_lan) > 1:
+                for p in self.probes_on_lan:
                     t2hop.extend(self._get_rtt_hop_nr(p,2))
                     t3hop.extend(self._get_rtt_hop_nr(p,3))
                 
@@ -206,16 +206,17 @@ class DiagnosisServer():
                 diagnosis = 'gw'
         
         if not diagnosis:
-            diff_http_tcp.extend = []
-            for p in probes_on_lan:
-                diff_http_tcp.extend(_get_thttp_minus_ttcp (p))
-            if cusum(diff_http_tcp):
-                diagnosis = 'remote web server'
-            else:
-                diagnosis = 'network'
-            
+            self.check_http_tcp()
         return diagnosis
         
+    def check_remote_web(self):
+        diff_http_tcp.extend = []
+        for p in self.probes_on_lan:
+            diff_http_tcp.extend(_get_thttp_minus_ttcp (p))
+        if cusum(diff_http_tcp):
+            diagnosis = 'remote web server'
+        else:
+            diagnosis = 'network'
     
     def _get_rtt_hop_nr(self, probe, hop):
         res = []
@@ -251,35 +252,14 @@ class DiagnosisServer():
             diff.append( probe.get_stats()[sid]['t_http'] - probe.get_stats()[sid]['t_tcp'])
         return diff
     
-    def check_http_tcp(self, probes):
-        diff = self._get_thttp_minus_ttcp(probes)
-        diff.extend(self._get_thttp_minus_ttcp(self.applicant))
+    def check_http_tcp(self):
+        diff = self._get_thttp_minus_ttcp(self.probes)
         c = Cusum()
         if c.compute(diff):
             return 'remote web server'
         else:
             return 'network'
         
-    def diagnose_lan(self):
-        diagnosis = 0
-        gw = self._get_gw()
-        res, id_probes_on_lan = self._get_probes_on_lan(gw)
-        logger.debug('diagnose_lan, found %d probes, sending "%s"' % (len(id_probes_on_lan), res))
-        probes = []
-        for probeid in id_probes_on_lan:
-            p = Probe(probeid)
-            self._retrieve_probe_data(p)
-            probes.append(p)
-        
-        if res == 'all':
-            diagnosis = self.check_gw_lan(probes)
-        elif res == 'none':
-            diagnosis = self.check_http_tcp(probes)
-        else:
-            diagnosis = 'generic network'
-        
-        return diagnosis
-
 if __name__ == '__main__':
     import sys
     import logging.config
