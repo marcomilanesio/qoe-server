@@ -38,13 +38,16 @@ class DataManager():
         ping_max = str(ping_dic['max'])
         ping_avg = str(ping_dic['avg'])
         ping_std = str(ping_dic['std'])
-        query = '''insert into %s (clientID, sid, clientIP, session_url, remoteaddress, ping_min, ping_max, ping_avg, ping_std) values (%d, %d, '%s', '%s', '%s', %s, %s, %s, %s)
-        ''' % (self.dbconn.get_table_names()['pingtable'], clientid, sid, clientip, session_url, remoteaddress, ping_min, ping_max, ping_avg, ping_std)
+        query = '''insert into %s (clientID, sid, clientIP, session_url, remoteaddress, ping_min,
+        ping_max, ping_avg, ping_std) values (%d, %d, '%s', '%s', '%s', %s, %s, %s, %s)
+        ''' % (self.dbconn.get_table_names()['pingtable'], clientid, sid, clientip, session_url,
+               remoteaddress, ping_min, ping_max, ping_avg, ping_std)
         self.dbconn.insert_data_to_db(query)
         logger.info('Inserted ping from probe id [%d] to [%s]' % (clientid, remoteaddress))
         
     '''
-    active_data['trace'].append({'sid': sid, 'remoteaddress': remoteaddress, 'step': step_nr, 'step_address': step_addr, 'rtt': step_rtt})
+    active_data['trace'].append({'sid': sid, 'remoteaddress': remoteaddress, 'step': step_nr,
+    'step_address': step_addr, 'rtt': step_rtt})
     '''
     def _insert_trace_data(self, clientid, trace_list_of_dic):
         for dic in trace_list_of_dic:
@@ -61,22 +64,27 @@ class DataManager():
             '''
             min_ = max_ = avg_ = std_ = dic['rtt']
             step_addr = dic['step_address']
+            '''
+            @TODO remove ??? case (no more mtr)
+            '''
             if step_addr == '???' or step_addr == 'n.a.':
                 step_addr = 'NULL'
-                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max, rtt_avg, rtt_std)
-                values (%d, %d, '%s', %d, %s, %s, %s, %s, %s)
-                ''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr, step_addr, min_, max_, avg_, std_)
+                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max,
+                rtt_avg, rtt_std) values (%d, %d, '%s', %d, %s, %s, %s, %s, %s)
+                ''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr,
+                       step_addr, min_, max_, avg_, std_)
             else:
-                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max, rtt_avg, rtt_std)
-                values (%d, %d, '%s', %d, '%s', %s, %s, %s, %s)
-                ''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr, step_addr, min_, max_, avg_, std_)
+                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max,
+                rtt_avg, rtt_std) values (%d, %d, '%s', %d, '%s', %s, %s, %s, %s)
+                ''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr,
+                       step_addr, min_, max_, avg_, std_)
             self.dbconn.insert_data_to_db(query)
         logger.info('Inserted trace from probe id [%d] to [%s]' % (clientid, remoteaddress))
         
     def insert_data(self, jsondata, client_ip):
         clientid = int(jsondata['clientid'])
         ping = jsondata['ping']
-        trace = jsondata['trace'] #list of dic
+        trace = jsondata['trace']  #list of dic
         self._insert_ping_data(clientid, client_ip, ping)
         self._insert_trace_data(clientid, trace)
 
@@ -94,8 +102,9 @@ class DataManager():
             cpu_perc = dic['osstats'][0]
             mem_perc = dic['osstats'][1]
             start_time = dic['start']
-            query = '''insert into %s (clientID, sid, session_start, t_idle, t_tot, t_http, t_tcp, t_dns, cpu_perc, mem_perc, page_dim) 
-            values (%d, %d, '%s', %s, %s, %s, %s, %s, %s, %s, %s)
-            ''' % (self.dbconn.get_table_names()['clienttable'], int(clientid), int(k), start_time, idle_time, tot_time, http_time, tcp_time, dns_time, cpu_perc, mem_perc, page_dim )
+            query = '''insert into %s (clientID, sid, session_start, t_idle, t_tot, t_http, t_tcp, t_dns, cpu_perc,
+            mem_perc, page_dim) values (%d, %d, '%s', %s, %s, %s, %s, %s, %s, %s, %s)
+            ''' % (self.dbconn.get_table_names()['clienttable'], int(clientid), int(k), start_time, idle_time,
+                   tot_time, http_time, tcp_time, dns_time, cpu_perc, mem_perc, page_dim)
             self.dbconn.insert_data_to_db(query)
             logger.info('Inserted local stats from probe [%d]' % clientid)
