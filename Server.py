@@ -30,10 +30,12 @@ from DBConn import DBConn
 import logging
 import logging.config
 
-CONF_FILE='./server.conf'
+CONF_FILE = './server.conf'
+
 
 class JSONServer(SocketServer.ThreadingTCPServer):
     allow_reuse_address = True
+
 
 class JSONServerHandler(SocketServer.StreamRequestHandler):
     def handle(self):
@@ -42,7 +44,7 @@ class JSONServerHandler(SocketServer.StreamRequestHandler):
         try:
             data = self.rfile.readline().strip()
             logger.info('received data from %s ' % clientip)
-            if (re.match('check: ', data)):
+            if re.match('check: ', data):
                 result = {}
                 received = json.loads(data[7:])
                 url_to_diagnose = received['url']

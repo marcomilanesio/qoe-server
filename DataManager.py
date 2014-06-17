@@ -43,24 +43,31 @@ class DataManager():
         self.dbconn.insert_data_to_db(query)
         logger.info('Inserted ping from probe id [%d] to [%s]' % (clientid, remoteaddress))
         
-
+    '''
+    active_data['trace'].append({'sid': sid, 'remoteaddress': remoteaddress, 'step': step_nr, 'step_address': step_addr, 'rtt': step_rtt})
+    '''
     def _insert_trace_data(self, clientid, trace_list_of_dic):
         for dic in trace_list_of_dic:
             remoteaddress = dic['remoteaddress'] 
             sid = int(dic['sid'])
             step_nr = int(dic['step'])
-            min_ = dic['min']
-            max_ = dic['max']
-            avg_ = dic['avg']
-            std_ = dic['std']
+            #min_ = dic['min']
+            #max_ = dic['max']
+            #avg_ = dic['avg']
+            #std_ = dic['std']
+            '''
+            @TODO
+            Only one rtt given
+            '''
+            min_ = max_ = avg_ = std_ = dic['rtt']
             step_addr = dic['step_address']
-            if step_addr == '???':
+            if step_addr == '???' or step_addr == 'n.a.':
                 step_addr = 'NULL'
-                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max, rtt_avg, rtt_std) 
+                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max, rtt_avg, rtt_std)
                 values (%d, %d, '%s', %d, %s, %s, %s, %s, %s)
                 ''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr, step_addr, min_, max_, avg_, std_)
             else:
-                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max, rtt_avg, rtt_std)  
+                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max, rtt_avg, rtt_std)
                 values (%d, %d, '%s', %d, '%s', %s, %s, %s, %s)
                 ''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr, step_addr, min_, max_, avg_, std_)
             self.dbconn.insert_data_to_db(query)
