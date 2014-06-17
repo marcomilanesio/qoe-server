@@ -59,25 +59,34 @@ class JSONServerHandler(SocketServer.StreamRequestHandler):
                         res = ds.get_result(time_range)
                         result = {'return': json.dumps(res)}
                     else:
-                        result = {'return':'[utils] url malformed'}
+                        result = {'return': '[utils] url malformed'}
                 except ValueError:
                     logger.warning('url malformed')
-                    result = {'return':'url malformed'}
+                    result = {'return': 'url malformed'}
                 self.request.sendall(json.dumps(result))
             else:
                 datamanager_srv = DataManager(dbconn)
-                if (re.match('local: ', data)):
+                print '-----\n'
+                print data
+                print '-----\n'
+                if re.match('local: ', data):
                     logger.debug('local stats received')
                     local_data = json.loads(data[7:])
+                    print '---local data--\n'
+                    print local_data
+                    print '-----\n'
                     datamanager_srv.insert_local_data(local_data)
                 else:
                     logger.debug('ping/trace data received')
                     jsondata = json.loads(data)
+                    print '---json data--\n'
+                    print jsondata.keys()
+                    print '-----\n'
                     datamanager_srv.insert_data(jsondata, clientip)
                 self.request.sendall(json.dumps({'return': 'data inserted'}))
         except Exception, e:
             logger.error('Exception while receiving message: %s' % e)
-            print "Exception while receiving message: ", e
+            pass
 
 
 logging.config.fileConfig('logging.conf')
