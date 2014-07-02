@@ -46,31 +46,35 @@ class DataManager():
         logger.info('Inserted ping from probe id [%d] to [%s]' % (clientid, remoteaddress))
         
     def _insert_trace_data(self, clientid, trace_list_of_dic):
+	
         for dic in trace_list_of_dic:
-            remoteaddress = dic['remoteaddress'] 
-            sid = int(dic['sid'])
-            step_nr = int(dic['step'])
-            min_ = float(dic['rtt']['min'])
-            max_ = float(dic['rtt']['max'])
-            avg_ = float(dic['rtt']['avg'])
-            std_ = float(dic['rtt']['std'])
+            rtt = dic['rtt']
+	    #print rtt       
+	    if rtt != -1:
+            	remoteaddress = dic['remoteaddress'] 
+	    	sid = int(dic['sid'])
+	    	step_nr = int(dic['step'])
+	    	min_ = float(dic['rtt']['min'])
+            	max_ = float(dic['rtt']['max'])
+            	avg_ = float(dic['rtt']['avg'])
+            	std_ = float(dic['rtt']['std'])
 
-            step_addr = dic['step_address']
-            '''
-            @TODO remove ??? case (no more mtr)
-            '''
-            if step_addr == '???' or step_addr == 'n.a.':
-                step_addr = 'NULL'
-                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max,
-                rtt_avg, rtt_std) values (%d, %d, '%s', %d, %s, %f, %f, %f, %f)
-                ''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr,
-                       step_addr, min_, max_, avg_, std_)
-            else:
-                query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max,
-                rtt_avg, rtt_std) values (%d, %d, '%s', %d, '%s', %f, %f, %f, %f)
-                ''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr,
-                       step_addr, min_, max_, avg_, std_)
-            self.dbconn.insert_data_to_db(query)
+            	step_addr = dic['step_address']
+            	'''
+            	@TODO remove ??? case (no more mtr)
+            	'''
+            	if step_addr == '???' or step_addr == 'n.a.':
+                	step_addr = 'NULL'
+                	query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max,
+                	rtt_avg, rtt_std) values (%d, %d, '%s', %d, %s, %f, %f, %f, %f)
+                	''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr,
+                       		step_addr, min_, max_, avg_, std_)
+            	else:
+                	query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max,
+                	rtt_avg, rtt_std) values (%d, %d, '%s', %d, '%s', %f, %f, %f, %f)
+                	''' % (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr,
+                       		step_addr, min_, max_, avg_, std_)
+            	self.dbconn.insert_data_to_db(query)
         logger.info('Inserted trace from probe id [%d] to [%s]' % (clientid, remoteaddress))
         
     def insert_data(self, jsondata, client_ip):
