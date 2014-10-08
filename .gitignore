@@ -3,3 +3,4 @@
 temp_query.sql
 diagLocal.sh
 *.conf
+.idea/*
