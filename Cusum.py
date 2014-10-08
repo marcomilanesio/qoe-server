@@ -23,13 +23,14 @@ import ConfigParser
 
 cusum_conf = './cusum.conf'
 
+
 class Cusum():
-    def __init__(self): 
+    def __init__(self, cusum_name):
         self.config = ConfigParser.RawConfigParser()
         self.config.read(cusum_conf)
-        self.th = float(self.config.get('cusum','th'))
-        self.alpha = float(self.config.get('cusum','alpha'))
-        self.c = float(self.config.get('cusum','c'))
+        self.th = float(self.config.get(cusum_name, 'th'))
+        self.alpha = float(self.config.get('cusum', 'alpha'))
+        self.c = float(self.config.get('cusum', 'c'))
     
     def compute(self, list_):
         i = 0
@@ -42,8 +43,8 @@ class Cusum():
                 CUSUM_p = CUSUM
             else:
                 m_p = self.alpha * m + (1 - self.alpha) * sample   #EWMA
-                var_p = self.alpha * var + (1 - self.alpha) * pow((sample - m_p),2)
-                L = sample - (m_p + self.c * math.sqrt(var_p))
+                var_p = self.alpha * var + (1 - self.alpha) * pow((sample - m_p), 2)
+                L = sample - (m_p + self.c * math.sqrt(var_p))  # incremento CUSUM
                 CUSUM_p = CUSUM + L
                 if (CUSUM_p < 0):
                     CUSUM_p = 0.0
@@ -55,17 +56,9 @@ class Cusum():
                     CUSUM = CUSUM_p
         return None
 
-    def adjust_th(self, th):
-        if th > self.th:
-            new_th = (1 - self.alpha) * th + self.alpha * self.th
-        elif th < self.th:
-            new_th = (1 - self.alpha) * self.th + self.alpha * th
-        else:
-            new_th = self.th
-
-        if new_th != self.th:
-            self.config.set('cusum','th', new_th)
-            with open(cusum_conf, 'wb') as configfile:
-                self.config.write(configfile)
-            return new_th
-        return -1
+    def adjust_th(self, computed_cusum):
+        new_th = (1 - self.alpha) * computed_cusum + self.alpha * self.th
+        self.config.set('cusum', 'th', new_th)
+        with open(cusum_conf, 'wb') as configfile:
+            self.config.write(configfile)
+        return new_th

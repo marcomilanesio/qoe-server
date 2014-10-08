@@ -18,6 +18,8 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+
+
 class Step():
     def __init__(self, step_nr, step_address, rtt):
         self.step_nr = step_nr
@@ -54,6 +56,7 @@ class Trace():
         else:
             tmp = map(int, self.steps.keys())
             return self.steps[str(max(tmp))]
+
 
 class Ping():
     def __init__(self, sid, target, min_, max_, avg, std):
@@ -124,4 +127,3 @@ class Probe():
     def get_sids(self):
         res = [int(x) for x in self.stats.keys()]
         return res
-        
