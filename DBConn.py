@@ -25,6 +25,7 @@ import ConfigParser
 conf_file = './server.conf'
 #conf_file = './firelog.conf'
 
+
 class DBConn():
     def __init__(self):
         self.config = ConfigParser.RawConfigParser()
