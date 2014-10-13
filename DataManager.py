@@ -38,15 +38,15 @@ class DataManager():
         ping_max = float(ping_dic['max'])
         ping_avg = float(ping_dic['avg'])
         ping_std = float(ping_dic['std'])
+        loss = int(ping_dic['loss'])
         query = '''insert into %s (clientID, sid, clientIP, session_url, remoteaddress, ping_min,
-        ping_max, ping_avg, ping_std) values (%d, %d, '%s', '%s', '%s', %f, %f, %f, %f)
+        ping_max, ping_avg, ping_std, loss_rate) values (%d, %d, '%s', '%s', '%s', %f, %f, %f, %f, %d)
         ''' % (self.dbconn.get_table_names()['pingtable'], clientid, sid, clientip, session_url,
-               remoteaddress, ping_min, ping_max, ping_avg, ping_std)
+               remoteaddress, ping_min, ping_max, ping_avg, ping_std, loss)
         self.dbconn.insert_data_to_db(query)
         logger.info('Inserted ping from probe id [%d] to [%s]' % (clientid, remoteaddress))
         
     def _insert_trace_data(self, clientid, trace_list_of_dic):
-	
         for dic in trace_list_of_dic:
             rtt = dic['rtt']
 	    #print rtt       

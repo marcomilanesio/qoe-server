@@ -27,7 +27,7 @@ stats_table = 'stats_%s' % str_time
 diagn_table = 'diagnosis_%s' % str_time
 
 create_ping = '''CREATE TABLE %s (id serial NOT NULL, clientID INT8 NOT NULL, sid INT8 NOT NULL, clientIP INET,
-session_url TEXT, remoteaddress INET, ping_min FLOAT, ping_max FLOAT, ping_avg FLOAT, ping_std FLOAT,
+session_url TEXT, remoteaddress INET, ping_min FLOAT, ping_max FLOAT, ping_avg FLOAT, ping_std FLOAT, loss_rate INT,
 PRIMARY KEY (id, clientID, sid, remoteaddress));''' % ping_table
 
 create_trace = '''CREATE TABLE %s (id serial NOT NULL, clientID INT8 NOT NULL, sid INT8 NOT NULL,remoteaddress INET,
