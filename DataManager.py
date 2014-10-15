@@ -84,23 +84,21 @@ class DataManager():
         self._insert_ping_data(clientid, client_ip, ping)
         self._insert_trace_data(clientid, trace)
 
-    def insert_local_data(self, local_data):
-        clientid = int(local_data['clientid'])
-        data = local_data['local']
-        for k in data.keys():
-            dic = data[k]
-            page_dim = int(dic['dim'])
-            idle_time = int(dic['idle'])
-            tot_time = int(dic['tot'])
-            http_time = int(dic['http'])
-            tcp_time = int(dic['tcp'])
-            dns_time = int(dic['dns'])
-            cpu_perc = int(dic['osstats'][0])
-            mem_perc = int(dic['osstats'][1])
-            start_time = dic['start']
-            query = '''insert into %s (clientID, sid, session_start, t_idle, t_tot, t_http, t_tcp, t_dns, cpu_perc,
-            mem_perc, page_dim) values (%d, %d, '%s', %d, %d, %d, %d, %d, %d, %d, %d)
-            ''' % (self.dbconn.get_table_names()['clienttable'], int(clientid), int(k), start_time, idle_time,
-                   tot_time, http_time, tcp_time, dns_time, cpu_perc, mem_perc, page_dim)
-            self.dbconn.insert_data_to_db(query)
-            logger.info('Inserted local stats from probe [%d]' % clientid)
+    def insert_local_data(self, sid, probeid, ts, local_data):
+        clientid = int(probeid)
+        sid = int(sid)
+        page_dim = int(local_data['dim'])
+        idle_time = int(local_data['idle'])
+        tot_time = int(local_data['tot'])
+        http_time = int(local_data['http'])
+        tcp_time = int(local_data['tcp'])
+        dns_time = int(local_data['dns'])
+        cpu_perc = int(local_data['osstats'][0])
+        mem_perc = int(local_data['osstats'][1])
+        start_time = local_data['start']
+        query = '''insert into %s (clientID, sid, session_start, t_idle, t_tot, t_http, t_tcp, t_dns, cpu_perc,
+        mem_perc, page_dim) values (%d, %d, '%s', %d, %d, %d, %d, %d, %d, %d, %d)''' % \
+                (self.dbconn.get_table_names()['clienttable'], int(clientid), sid, start_time, idle_time,
+                 tot_time, http_time, tcp_time, dns_time, cpu_perc, mem_perc, page_dim)
+        self.dbconn.insert_data_to_db(query)
+        logger.info('Inserted local stats from probe [%d]' % clientid)

@@ -29,6 +29,7 @@ from DiagnosisServer import DiagnosisServer
 from DBConn import DBConn
 import logging
 import logging.config
+from contextlib import closing
 
 CONF_FILE = './server.conf'
 
@@ -39,9 +40,31 @@ class JSONServer(SocketServer.ThreadingTCPServer):
 
 class JSONServerHandler(SocketServer.StreamRequestHandler):
     def handle(self):
-        dbconn = DBConn()
+        #dbconn = DBConn()
         clientip = self.client_address[0]
         try:
+            data = self.rfile.readline().strip()
+            msg = "received {0} bytes from {1}".format(len(data), clientip)
+            logger.info(msg)
+            answer = {'Server says': msg}
+            self.request.sendall(json.dumps(answer))
+            if re.match("check: ", data):
+                pass
+            else:
+                json_data = json.loads(data)
+                logger.info("Got data for %d sessions" % len(json_data))
+                #datamanager_srv = DataManager(dbconn)
+                for session in json_data:
+                    # ['passive', 'active', 'ts', 'clientid', 'sid']
+                    logger.info("Saving data for session {0} from probe {1}...".format(session['sid'],
+                                                                                       session['clientid']))
+                    #datamanager_srv.insert_local_data(session['sid'], session['clientid'], session['passive'])
+                    for i in range(len(session['active'])):
+                        #[u'ping', u'clientid', u'trace']
+                        print session['active'][i].keys()
+
+
+            '''
             data = self.rfile.readline().strip()
             logger.info('received data from %s ' % clientip)
             if re.match('check: ', data):
@@ -75,6 +98,7 @@ class JSONServerHandler(SocketServer.StreamRequestHandler):
                     jsondata = json.loads(data)
                     datamanager_srv.insert_data(jsondata, clientip)
                 self.request.sendall(json.dumps({'return': 'data inserted'}))
+            '''
         except Exception, e:
             logger.error('Exception while receiving message: %s' % e)
             pass
@@ -84,8 +108,8 @@ logging.config.fileConfig('logging.conf')
 logger = logging.getLogger('server')
 config = ConfigParser.RawConfigParser()
 config.read(CONF_FILE)
-ip_ = config.get('server','ip')
-port_ = int(config.get('server','port'))
+ip_ = config.get('server', 'ip')
+port_ = int(config.get('server', 'port'))
 server = JSONServer((ip_, port_), JSONServerHandler)
 logger.info('Server started on %s:%d' % (ip_, port_))
 server.serve_forever()
