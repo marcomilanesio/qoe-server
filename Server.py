@@ -20,16 +20,14 @@
 #
 import SocketServer
 import json
-import psycopg2
 import ConfigParser
 import re
-import Utils
 from DataManager import DataManager
-from DiagnosisServer import DiagnosisServer
 from DBConn import DBConn
 import logging
 import logging.config
-from contextlib import closing
+import Utils
+from DiagnosisServer import DiagnosisServer
 
 CONF_FILE = './server.conf'
 
@@ -40,7 +38,7 @@ class JSONServer(SocketServer.ThreadingTCPServer):
 
 class JSONServerHandler(SocketServer.StreamRequestHandler):
     def handle(self):
-        #dbconn = DBConn()
+        dbconn = DBConn()
         clientip = self.client_address[0]
         try:
             data = self.rfile.readline().strip()
@@ -53,52 +51,16 @@ class JSONServerHandler(SocketServer.StreamRequestHandler):
             else:
                 json_data = json.loads(data)
                 logger.info("Got data for %d sessions" % len(json_data))
-                #datamanager_srv = DataManager(dbconn)
+                datamanager_srv = DataManager(dbconn)
                 for session in json_data:
                     # ['passive', 'active', 'ts', 'clientid', 'sid']
                     logger.info("Saving data for session {0} from probe {1}...".format(session['sid'],
                                                                                        session['clientid']))
-                    #datamanager_srv.insert_local_data(session['sid'], session['clientid'], session['passive'])
+                    datamanager_srv.insert_local_data(session['sid'], session['clientid'], session['passive'])
                     for i in range(len(session['active'])):
-                        #[u'ping', u'clientid', u'trace']
-                        print session['active'][i].keys()
-
-
-            '''
-            data = self.rfile.readline().strip()
-            logger.info('received data from %s ' % clientip)
-            if re.match('check: ', data):
-                result = {}
-                received = json.loads(data[7:])
-                url_to_diagnose = received['url']
-                clientid = int(received['clientid'])
-                logger.debug('check message for %s from %d' % ( url_to_diagnose, clientid))
-                time_range = received['time_range']
-                #print 'time_range:' , time_range
-                try:
-                    if Utils.check_url(url_to_diagnose):
-                        logger.debug('URL validated')
-                        ds = DiagnosisServer(dbconn, clientid, clientip, url_to_diagnose)
-                        res = ds.get_result(time_range)
-                        result = {'return': json.dumps(res)}
-                    else:
-                        result = {'return': '[utils] url malformed'}
-                except ValueError:
-                    logger.warning('url malformed')
-                    result = {'return': 'url malformed'}
-                self.request.sendall(json.dumps(result))
-            else:
-                datamanager_srv = DataManager(dbconn)
-                if re.match('local: ', data):
-                    logger.debug('local stats received')
-                    local_data = json.loads(data[7:])
-                    datamanager_srv.insert_local_data(local_data)
-                else:
-                    logger.debug('ping/trace data received')
-                    jsondata = json.loads(data)
-                    datamanager_srv.insert_data(jsondata, clientip)
-                self.request.sendall(json.dumps({'return': 'data inserted'}))
-            '''
+                        #{u'ping':{}, u'clientid':int, u'trace':{}}
+                        current = session['active'][i]
+                        datamanager_srv.insert_data(current, clientip)
         except Exception, e:
             logger.error('Exception while receiving message: %s' % e)
             pass
