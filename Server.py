@@ -52,8 +52,8 @@ class JSONServerHandler(SocketServer.StreamRequestHandler):
                 logger.info("Got data for %d sessions" % len(json_data))
                 tmp = []
                 for session in json_data:
-                    tmp.append(session['sid'])
-                answer['sid'] = tmp
+                    tmp.append(session['sids'])
+                answer['sids'] = tmp
                 self.request.sendall(json.dumps(answer))
                 datamanager_srv = DataManager(dbconn)
                 for session in json_data:
