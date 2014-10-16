@@ -44,13 +44,17 @@ class JSONServerHandler(SocketServer.StreamRequestHandler):
             data = self.rfile.readline().strip()
             msg = "received {0} bytes from {1}".format(len(data), clientip)
             logger.info(msg)
-            answer = {'Server says': msg}
-            self.request.sendall(json.dumps(answer))
+            answer = {'Server says': msg, 'sids': []}
             if re.match("check: ", data):
                 pass
             else:
                 json_data = json.loads(data)
                 logger.info("Got data for %d sessions" % len(json_data))
+                tmp = []
+                for session in json_data:
+                    tmp.append(session['sid'])
+                answer['sid'] = tmp
+                self.request.sendall(json.dumps(answer))
                 datamanager_srv = DataManager(dbconn)
                 for session in json_data:
                     # ['passive', 'active', 'ts', 'clientid', 'sid']
