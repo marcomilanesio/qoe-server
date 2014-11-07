@@ -41,7 +41,25 @@ page_dim INT, PRIMARY KEY (id, clientID, sid, session_start)) ;''' % stats_table
 create_diagnosis = '''CREATE TABLE %s (diagnosis_run TIMESTAMP, clientID INT8 NOT NULL, sid INT8 NOT NULL, session_start TIMESTAMP,
 result TEXT, PRIMARY KEY (diagnosis_run, clientID, sid)) ; ''' % diagn_table
 
-tables = [create_ping, create_trace, create_stats, create_diagnosis]
+session_table = "sessions_{0}".format(str_time)
+create_session_table = '''CREATE TABLE {0} (
+    id serial NOT NULL,
+    probeid INT8 NOT NULL,
+    probeip INET,
+    sid INT8,
+    session_url TEXT,
+    session_start TIMESTAMP,
+    server_ip INET,
+    full_load_time INT,
+    page_dim INT,
+    cpu_percent INT,
+    mem_percent INT,
+    services TEXT,
+    active_measurements TEXT,
+    PRIMARY KEY (id, probeid)
+) '''.format(session_table)
+
+tables = [create_ping, create_trace, create_stats, create_diagnosis, create_session_table]
 
 if sys.argv[1] == 'd':
     print 'Dropping tables'
@@ -60,6 +78,7 @@ config.set('server', 'pingtable', ping_table)
 config.set('server', 'tracetable', trace_table)
 config.set('server', 'clienttable', stats_table)
 config.set('server', 'diagnosistable', diagn_table)
+config.set('server', 'sessiontable', session_table)
 with open(conf_file, 'wb') as configfile:
     config.write(configfile)
 conn.close()

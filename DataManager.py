@@ -27,79 +27,52 @@ logger = logging.getLogger('DataManager')
 
 
 class DataManager():
-    def __init__(self, dbconn):
-        self.dbconn = dbconn
-        #self.dbconn.create_tables()
-        
-    def _insert_ping_data(self, clientid, clientip, ping_dic):
-        sid = int(ping_dic['sid'])
-        session_url = ping_dic['session_url'] 
-        remoteaddress = str(ping_dic['remoteaddress'])
-        ping_min = float(ping_dic['min'])
-        ping_max = float(ping_dic['max'])
-        ping_avg = float(ping_dic['avg'])
-        ping_std = float(ping_dic['std'])
-        loss = int(ping_dic['loss'])
-        query = '''insert into %s (clientID, sid, clientIP, session_url, remoteaddress, ping_min,
-        ping_max, ping_avg, ping_std, loss_rate) values (%d, %d, '%s', '%s', '%s', %f, %f, %f, %f, %d)
-        ''' % (self.dbconn.get_table_names()['pingtable'], clientid, sid, clientip, session_url,
-               remoteaddress, ping_min, ping_max, ping_avg, ping_std, loss)
-        self.dbconn.insert_data_to_db(query)
-        logger.info('Inserted ping from probe id [%d] to [%s]' % (clientid, remoteaddress))
-        
-    def _insert_trace_data(self, clientid, trace_list_of_dic):
-        # trace_list_of_dic
-        # [{u'rtt': {u'std': , u'max': , u'avg': , u'min': },
-        #   u'step': , u'step_address': , u'sid': , u'remoteaddress': '}
-        for dic in trace_list_of_dic:
-            rtt = dic['rtt']
-            if rtt != -1:
-                remoteaddress = dic['remoteaddress']
-                sid = int(dic['sid'])
-                step_nr = int(dic['step'])
-                min_ = float(dic['rtt']['min'])
-                max_ = float(dic['rtt']['max'])
-                avg_ = float(dic['rtt']['avg'])
-                std_ = float(dic['rtt']['std'])
-                step_addr = dic['step_address']
+    def __init__(self, probeip, json_data):
+        self.db = DBConn()
+        self.probeip = probeip
+        self.json_data = json_data
+        self._create_table()
+        logger.info("Started for ip [{0}]: storing {1} session(s)".format(self.probeip, len(json_data)))
 
-                if step_addr == 'n.a.':
-                    step_addr = 'NULL'
-                    query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max,
-                    rtt_avg, rtt_std) values (%d, %d, '%s', %d, %s, %f, %f, %f, %f)	''' % \
-                        (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr,
-                         step_addr, min_, max_, avg_, std_)
-                else:
-                    query = '''insert into %s (clientID, sid, remoteaddress, step_nr, step_address, rtt_min, rtt_max,
-                    rtt_avg, rtt_std) values (%d, %d, '%s', %d, '%s', %f, %f, %f, %f)''' % \
-                        (self.dbconn.get_table_names()['tracetable'], clientid, sid, remoteaddress, step_nr,
-                         step_addr, min_, max_, avg_, std_)
+    def _create_table(self):
+        q = '''CREATE TABLE IF NOT EXISTS {0} (id serial NOT NULL,
+        probeid INT8 NOT NULL,
+        probeip INET,
+        sid INT8,
+        session_url TEXT,
+        session_start TIMESTAMP,
+        server_ip INET,
+        full_load_time INT,
+        page_dim INT,
+        cpu_percent INT,
+        mem_percent INT,
+        services TEXT,
+        active_measurements TEXT,
+        PRIMARY KEY (id, probeid)
+        ) '''.format(self.db.sessiontable)
+        self.db.insert_data_to_db(q)
 
-                self.dbconn.insert_data_to_db(query)
-        logger.info('Inserted trace from probe id [%d] to [%s]' % (clientid, remoteaddress))
-        
-    def insert_data(self, jsondata, client_ip):
-        clientid = int(jsondata['clientid'])
-        ping = jsondata['ping']
-        trace = jsondata['trace']  #list of dic
-        self._insert_ping_data(clientid, client_ip, ping)
-        self._insert_trace_data(clientid, trace)
+    def insert_data(self):
+        stub = '''insert into {0} (probeid, probeip, sid, session_url, session_start, server_ip, full_load_time,
+        page_dim, cpu_percent, mem_percent, services, active_measurements) values '''.format(self.db.sessiontable)
+        for i in range(len(self.json_data)):
+            dic = self.json_data[i]
+            probeid = dic['probeid']                # 1
+            #self.probeip                           # 2
+            sid = dic['sid']                        # 3
+            session_url = dic['session_url']        # 4
+            session_start = dic['session_start']    # 5
+            server_ip = dic['server_ip']            # 6
+            full_load_time = dic['full_load_time']  # 7
+            page_dim = dic['page_dim']              # 8
+            cpu_percent = dic['cpu_percent']        # 9
+            mem_percent = dic['mem_percent']        # 10
+            services = json.dumps(dic['services'])              # 11
+            active_measurements = json.dumps(dic['active_measurements'])    # 12
 
-    def insert_local_data(self, sid, probeid, local_data):
-        clientid = int(probeid)
-        sid = int(sid)
-        page_dim = int(local_data['dim'])
-        idle_time = int(local_data['idle'])
-        tot_time = int(local_data['tot'])
-        http_time = int(local_data['http'])
-        tcp_time = int(local_data['tcp'])
-        dns_time = int(local_data['dns'])
-        cpu_perc = int(local_data['osstats'][0])
-        mem_perc = int(local_data['osstats'][1])
-        start_time = local_data['start']
-        query = '''insert into %s (clientID, sid, session_start, t_idle, t_tot, t_http, t_tcp, t_dns, cpu_perc,
-        mem_perc, page_dim) values (%d, %d, '%s', %d, %d, %d, %d, %d, %d, %d, %d)''' % \
-                (self.dbconn.get_table_names()['clienttable'], int(clientid), sid, start_time, idle_time,
-                 tot_time, http_time, tcp_time, dns_time, cpu_perc, mem_perc, page_dim)
-        self.dbconn.insert_data_to_db(query)
-        logger.info('Inserted local stats from probe [%d]' % clientid)
+            query = '''{0} ({1},'{2}',{3},'{4}','{5}','{6}',
+            {7},{8},{9},{10},'{11}','{12}')'''.format(stub, probeid, self.probeip, sid, session_url, session_start,
+                                                      server_ip, full_load_time, page_dim, cpu_percent, mem_percent,
+                                                      services, active_measurements)
+
+            self.db.insert_data_to_db(query)

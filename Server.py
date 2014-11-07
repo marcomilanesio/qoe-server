@@ -38,37 +38,34 @@ class JSONServer(SocketServer.ThreadingTCPServer):
 
 class JSONServerHandler(SocketServer.StreamRequestHandler):
     def handle(self):
-        dbconn = DBConn()
         clientip = self.client_address[0]
+        data = None
         try:
             data = self.rfile.readline().strip()
             msg = "received {0} bytes from {1}".format(len(data), clientip)
             logger.info(msg)
             answer = {'Server says': msg, 'sids': []}
-            if re.match("check: ", data):
-                pass
-            else:
-                json_data = json.loads(data)
-                logger.info("Got data for %d sessions" % len(json_data))
-                tmp = []
-                for session in json_data:
-                    tmp.append(session['sid'])
-                logger.info("Received sessions {0}".format(tmp))
-                answer['sids'] = tmp
-                self.request.sendall(json.dumps(answer))
-                datamanager_srv = DataManager(dbconn)
-                for session in json_data:
-                    # ['passive', 'active', 'ts', 'clientid', 'sid']
-                    logger.info("Saving data for session {0} from probe {1}...".format(session['sid'],
-                                                                                       session['clientid']))
-                    datamanager_srv.insert_local_data(session['sid'], session['clientid'], session['passive'])
-                    for i in range(len(session['active'])):
-                        #{u'ping':{}, u'clientid':int, u'trace':{}}
-                        current = session['active'][i]
-                        datamanager_srv.insert_data(current, clientip)
         except Exception, e:
             logger.error('Exception while receiving message: %s' % e)
             pass
+
+        if data:
+            if re.match("check: ", data):
+                pass
+            else:
+                json_data = json.loads(data)  # list of dictionary
+                logger.info("Got data for %d session(s)" % len(json_data))
+                tmp = []
+                for session in json_data:
+                    tmp.append(session['sid'])
+                logger.info("Received session(s) {0}".format(tmp))
+                answer['sids'] = tmp
+                self.request.sendall(json.dumps(answer))
+                datamanager_srv = DataManager(clientip, json_data)
+                datamanager_srv.insert_data()
+        else:
+            answer = {'Server says': 'Unable to load json data.'}
+            self.request.sendall(json.dumps(answer))
 
 
 logging.config.fileConfig('logging.conf')
