@@ -22,7 +22,7 @@ import ConfigParser
 import json
 from DBConn import DBConn
 import logging
-
+import psycopg2
 logger = logging.getLogger('DataManager')
 
 
@@ -31,7 +31,11 @@ class DataManager():
         self.db = DBConn()
         self.probeip = probeip
         self.json_data = json_data
-        self._create_table()
+        try:
+            self._create_table()
+        except psycopg2.ProgrammingError as e:
+            logger.error("Table exists {0}:{1}.".format(e.errno, e.strerror))
+            pass
         logger.info("Started for ip [{0}]: storing {1} session(s)".format(self.probeip, len(json_data)))
 
     def _create_table(self):
