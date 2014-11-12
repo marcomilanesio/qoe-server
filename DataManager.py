@@ -34,7 +34,7 @@ class DataManager():
         try:
             self._create_table()
         except psycopg2.ProgrammingError:
-            logger.error("Table exists.")
+            logger.warning("Table exists.")
         logger.info("Started for ip [{0}]: storing {1} session(s)".format(self.probeip, len(json_data)))
 
     def _create_table(self):
@@ -79,3 +79,4 @@ class DataManager():
                                                       services, active_measurements)
 
             self.db.insert_data_to_db(query)
+            return True
