@@ -33,9 +33,8 @@ class DataManager():
         self.json_data = json_data
         try:
             self._create_table()
-        except psycopg2.ProgrammingError as e:
-            logger.error("Table exists {0}:{1}.".format(e.errno, e.strerror))
-            pass
+        except psycopg2.ProgrammingError:
+            logger.error("Table exists.")
         logger.info("Started for ip [{0}]: storing {1} session(s)".format(self.probeip, len(json_data)))
 
     def _create_table(self):
