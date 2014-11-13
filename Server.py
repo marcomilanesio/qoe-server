@@ -62,8 +62,11 @@ class JSONServerHandler(SocketServer.StreamRequestHandler):
                 answer['sids'] = tmp
                 self.request.sendall(json.dumps(answer))
                 datamanager_srv = DataManager(clientip, json_data)
-                if datamanager_srv.insert_data():
-                    logger.info("Data inserted.")
+                done = datamanager_srv.insert_data()
+                if not done:
+                    logger.warning("Data not inserted.")
+                else:
+                    logger.info("Data inserted {0}.".format(done))
         else:
             answer = {'Server says': 'Unable to load json data.'}
             self.request.sendall(json.dumps(answer))

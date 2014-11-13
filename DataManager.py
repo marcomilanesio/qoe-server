@@ -31,10 +31,10 @@ class DataManager():
         self.db = DBConn()
         self.probeip = probeip
         self.json_data = json_data
-        try:
-            self._create_table()
-        except psycopg2.ProgrammingError:
-            logger.warning("Table exists.")
+        #try:
+        #    self._create_table()
+        #except psycopg2.ProgrammingError:
+        #    logger.warning("Table exists.")
         logger.info("Started for ip [{0}]: storing {1} session(s)".format(self.probeip, len(json_data)))
 
     def _create_table(self):
@@ -58,6 +58,8 @@ class DataManager():
     def insert_data(self):
         stub = '''insert into {0} (probeid, probeip, sid, session_url, session_start, server_ip, full_load_time,
         page_dim, cpu_percent, mem_percent, services, active_measurements) values '''.format(self.db.sessiontable)
+        #print len(self.json_data)
+        done = []
         for i in range(len(self.json_data)):
             dic = self.json_data[i]
             probeid = dic['probeid']                # 1
@@ -77,6 +79,10 @@ class DataManager():
             {7},{8},{9},{10},'{11}','{12}')'''.format(stub, probeid, self.probeip, sid, session_url, session_start,
                                                       server_ip, full_load_time, page_dim, cpu_percent, mem_percent,
                                                       services, active_measurements)
-
-            self.db.insert_data_to_db(query)
-            return True
+            #print query
+            try:
+                self.db.insert_data_to_db(query)
+                done.append(sid)
+            except:
+                logger.error(query)
+        return done
