@@ -32,14 +32,13 @@ class DBConn():
         self.config.read(conf_file)
         self.dbname = self.config.get('server', 'dbname')
         self.dbuser = self.config.get('server', 'dbuser')
+
+        self.sessiontable = self.config.get('server', 'sessiontable')
         self.pingtable = self.config.get('server', 'pingtable')
         self.tracetable = self.config.get('server', 'tracetable')
-        #self.clienttable = self.config.get('server', 'clienttable')
         self.diagnosistable = self.config.get('server', 'diagnosistable')
-        self.sessiontable = self.config.get('server', 'sessiontable')
         self.summarytable = self.config.get('server', 'summarytable')
         self.servicestable = self.config.get('server', 'servicestable')
-        #self.tables = [self.pingtable, self.tracetable, self.clienttable, self.diagnosistable]
         try:
             self.conn = psycopg2.connect(database=self.dbname, user=self.dbuser) 
         except psycopg2.DatabaseError, e:
@@ -47,9 +46,8 @@ class DBConn():
             sys.exit(1)
 
     def get_table_names(self):
-        #return {'pingtable': self.pingtable, 'tracetable': self.tracetable, 'clienttable': self.clienttable,
-        # 'diagnosistable': self.diagnosistable, 'sessiontable': self.sessiontable}
-        return {'diagnosistable': self.diagnosistable, 'sessiontable': self.sessiontable, 'summarytable': self.summarytable,
+        return {'diagnosistable': self.diagnosistable, 'sessiontable': self.sessiontable,
+                'summarytable': self.summarytable,
                 'servicestable': self.servicestable, 'pingtable': self.pingtable, 'tracetable': self.tracetable}
         
     def insert_data_to_db(self, q):
