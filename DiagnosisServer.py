@@ -36,6 +36,10 @@ class DiagnosisServer():
         self.dbconn = dbconn
         self.applicant = Probe(clientid, clientip)
         self.sessiontable = self.dbconn.get_table_names()['sessiontable']
+        self.summarytable = self.dbconn.get_table_names()['summarytable']
+        self.servicestable = self.dbconn.get_table_names()['servicestable']
+        self.pingtable = self.dbconn.get_table_names()['pingtable']
+        self.tracetable = self.dbconn.get_table_names()['tracetable']
         self.testsid = 0  # TODO: fa cagare
 
         thresholds = self._load_thresholds()
@@ -285,29 +289,92 @@ class DiagnosisServer():
     #     logger.info('Found destination IP for url %s: %s' % (url, destination_ip))
     #     return destination_ip
 
-    def get_data(self, url):
+    def import_data(self):
         data = {}
-        q = '''select distinct sid, session_start, server_ip, full_load_time, page_dim,
-        cpu_percent, mem_percent, services, active_measurements
-        from {0}
-        where session_url = '{1}' and probeid = {2} and probeip = '{3}'
-        '''.format(self.sessiontable, url, self.applicant.get_clientid(), self.applicant.get_clientip())
+        q = '''select a.probeid, a.probeip, a.sid, a.session_url, a.session_start, a.server_ip, a.full_load_time,
+        a.page_dim, a.cpu_percent, a.mem_percent, a.services, a.active_measurements
+        from {0} a
+        LEFT JOIN {1} b on (a.sid = b.sid and a.probeid = b.probeid and a.session_start = b.session_start)
+        where b.sid is NULL;
+        '''.format(self.sessiontable, self.summarytable)
         res = self.dbconn.execute_query(q)
         for measure in res:
-            data[measure[0]] = {'session_start': measure[1],
-                                'server_ip': measure[2],
-                                'full_load_time': measure[3],
-                                'page_dim': measure[4],
-                                'cpu_percent': measure[5],
-                                'mem_percent': measure[6],
-                                'services': json.loads(measure[7]),
-                                'active_measurements': json.loads(measure[8])}
+            data[measure[2]] = {'probeid': measure[0],
+                                'probeip': measure[1],
+                                'session_url': measure[3],
+                                'session_start': measure[4],
+                                'server_ip': measure[5],
+                                'full_load_time': measure[6],
+                                'page_dim': measure[7],
+                                'cpu_percent': measure[8],
+                                'mem_percent': measure[9],
+                                'services': json.loads(measure[10]),
+                                'active_measurements': json.loads(measure[11])}
 
-        logger.info("Fetched {0} results from the db".format(len(data)))
-        return data
+        logger.info("Fetched {0} new sessions from the db".format(len(data)))
+
+        for sid, session in data.iteritems():
+            q = '''insert into {0} (probeid, probeip, sid, session_url, session_start, server_ip, full_load_time,
+            page_dim, cpu_percent,mem_percent ) values
+            ({1}, '{2}', {3}, '{4}', '{5}', '{6}', {7}, {8}, {9}, {10})'''.format(self.summarytable, session['probeid'],
+                                                                                  session['probeip'], sid,
+                                                                                  session['session_url'],
+                                                                                  session['session_start'],
+                                                                                  session['server_ip'],
+                                                                                  session['full_load_time'],
+                                                                                  session['page_dim'],
+                                                                                  session['cpu_percent'],
+                                                                                  session['mem_percent'])
+            self.dbconn.insert_data_to_db(q)
+
+            for service in session['services']:
+                q1 = '''insert into {0} (probeid, sid, session_url, session_start, service_base_url, service_ip,
+                netw_bytes, t_tcp, t_http, rcv_time, nr_obj) values ({1}, {2}, '{3}', '{4}', '{5}', '{6}', {7}, {8},
+                {9}, {10}, {11})'''.format(self.servicestable, session['probeid'], sid, session['session_url'],
+                                           session['session_start'], service['base_url'], service['ip'],
+                                           service['netw_bytes'], service['sum_syn'], service['sum_http'],
+                                           service['sum_rcv_time'], service['nr_obj'])
+
+                self.dbconn.insert_data_to_db(q1)
+
+            for ip, active_measure in session['active_measurements'].iteritems():
+                ping = json.loads(active_measure['ping'])
+                trace = json.loads(active_measure['trace'])
+
+                q2 = '''insert into {0} (probeid, sid, session_start, server_ip, host, min, max, avg, std, loss) values
+                ({1}, {2}, '{3}', '{4}', '{5}', {6}, {7}, {8}, {9}, {10})'''.format(self.pingtable, session['probeid'],
+                                                                                    sid, session['session_start'],
+                                                                                    session['server_ip'], ping['host'],
+                                                                                    ping['min'], ping['max'],
+                                                                                    ping['avg'], ping['std'],
+                                                                                    ping['loss'])
+
+                self.dbconn.insert_data_to_db(q2)
+
+                for step in trace:
+                    rtt = step['rtt']
+                    if rtt == -1:
+                        q3 = '''insert into {0} (probeid, sid, session_start, server_ip, hop_nr, min, max, avg,
+                        std, endpoints) values ({1}, {2}, '{3}', '{4}', {5}, {6}, {7}, {8}, {9}, '{10}')'''.format(self.tracetable, session['probeid'], sid, session['session_start'],
+                                         session['server_ip'], step['hop_nr'], -1, -1, -1, -1,
+                                         json.dumps(step['endpoints']))
+                    else:
+                        q3 = '''insert into {0} (probeid, sid, session_start, server_ip, hop_addr, hop_nr, min, max, avg,
+                        std, endpoints) values ({1}, {2}, '{3}', '{4}', '{5}', {6}, {7}, {8}, {9}, {10}, '{11}')'''.format(self.tracetable, session['probeid'], sid, session['session_start'],
+                                         session['server_ip'], step['ip_addr'], step['hop_nr'], rtt['min'], rtt['max'],
+                                         rtt['avg'], rtt['std'], json.dumps(step['endpoints']))
+
+                    self.dbconn.insert_data_to_db(q3)
+
+        logger.info("Session(s) successfully imported.")
 
     def diagnose(self, url):
         data = self.get_data(url)
+        from pprint import pprint
+        print len(data)
+        for k, v in data.iteritems():
+            print v.keys()
+        exit()
         results = {}
         #max_sid = max(data.keys(), key=int)
         for sid in data.keys():
@@ -374,4 +441,4 @@ if __name__ == '__main__':
 
     db = DBConn()
     d = DiagnosisServer(db, clientid, clientip)
-    print d.diagnose(url)
+    d.import_data()
