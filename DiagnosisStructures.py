@@ -59,13 +59,14 @@ class Trace():
 
 
 class Ping():
-    def __init__(self, sid, target, min_, max_, avg, std):
+    def __init__(self, sid, target, min_, max_, avg, std, loss):
         self.sid = sid
         self.target = target
         self.min_ = min_
         self.max_ = max_
         self.avg_ = avg
         self.std_ = std
+        self.loss = loss
     
     def get_sid(self):
         return self.sid
@@ -84,6 +85,9 @@ class Ping():
 
     def get_target(self):
         return self.target
+
+    def get_loss(self):
+        return self.loss
         
         
 class Probe():
@@ -124,6 +128,9 @@ class Probe():
             self.pings[str(sid)] = []
         self.pings[str(sid)].append(ping)
     
+    def get_pings(self):
+        return self.pings
+
     def get_sids(self):
         res = [int(x) for x in self.stats.keys()]
         return res
