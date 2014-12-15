@@ -12,6 +12,9 @@ config.read(conf_file)
 dbname = config.get('server', 'dbname')
 dbuser = config.get('server', 'dbuser')
 
+#name = 'pisa'
+#name = 'tma2015_wild'
+name = 'local'
 try:
     conn = psycopg2.connect(database=dbname, user=dbuser) 
 except psycopg2.DatabaseError, e:
@@ -21,13 +24,21 @@ except psycopg2.DatabaseError, e:
 now = datetime.datetime.now()
 str_time = '%d%s%s' % (now.year, '{:02d}'.format(now.month), '{:02d}'.format(now.day))
 
-#diagn_table = 'pisa_diagnosis_%s' % str_time
-diagn_table = 'tma2015_wild_diagnosis'
+fullname = "{0}_{1}".format(name, str_time)
+
+diagn_table = "diagnosis_{0}".format(fullname)
+session_table = "sessions_{0}".format(fullname)
+summary_table = "summary_{0}".format(fullname)
+services_table = "services_{0}".format(fullname)
+ping_table = "ping_{0}".format(fullname)
+trace_table = "trace_{0}".format(fullname)
+
+#print diagn_table, session_table, summary_table, services_table, ping_table, trace_table
+#sys.exit(0)
+
 create_diagnosis = '''CREATE TABLE %s (diagnosis_run TIMESTAMP, probeid INT8 NOT NULL, sid INT8 NOT NULL, session_start TIMESTAMP,
 result TEXT, PRIMARY KEY (diagnosis_run, probeid, sid)) ; ''' % diagn_table
 
-#session_table = "sessions_{0}".format(str_time)
-session_table = 'tma2015_wild_sessions'
 create_session_table = '''CREATE TABLE {0} (
     id serial NOT NULL,
     probeid INT8 NOT NULL,
@@ -45,9 +56,6 @@ create_session_table = '''CREATE TABLE {0} (
     PRIMARY KEY (id, probeid, session_start)
 ) '''.format(session_table)
 
-
-#summary_table = "pisa_summary_{0}".format(str_time)
-summary_table = 'tma2015_wild_summary'
 create_summary_table = '''CREATE TABLE {0} (
     id serial NOT NULL,
     probeid INT8 NOT NULL,
@@ -63,9 +71,6 @@ create_summary_table = '''CREATE TABLE {0} (
     PRIMARY KEY (id, probeid, session_start)
 ) '''.format(summary_table)
 
-
-#services_table = "pisa_services_{0}".format(str_time)
-services_table = 'tma2015_wild_services'
 create_services_table = '''CREATE TABLE {0} (
     id serial NOT NULL,
     probeid INT8 NOT NULL,
@@ -82,9 +87,6 @@ create_services_table = '''CREATE TABLE {0} (
     PRIMARY KEY (id, probeid, session_start)
 ) '''.format(services_table)
 
-
-#ping_table = "pisa_ping_{0}".format(str_time)
-ping_table = 'tma2015_wild_ping'
 create_ping_table = '''CREATE TABLE {0} (
     id serial NOT NULL,
     probeid INT8 NOT NULL,
@@ -100,9 +102,6 @@ create_ping_table = '''CREATE TABLE {0} (
     PRIMARY KEY (id, probeid, session_start)
 ) '''.format(ping_table)
 
-
-#trace_table = "pisa_trace_{0}".format(str_time)
-trace_table = 'tma2015_wild_traces'
 create_trace_table = '''CREATE TABLE {0} (
     id serial NOT NULL,
     probeid INT8 NOT NULL,
