@@ -21,8 +21,8 @@
 import math
 import ConfigParser
 
+#cusum_conf = './cusum.conf.localpisa'
 cusum_conf = './cusum.conf'
-
 
 class Cusum():
     def __init__(self, cusum_name):
@@ -34,13 +34,13 @@ class Cusum():
         self.m = 0.0
         self.var = 0.0
         self.CUSUM = 0.0
-
+        self.i = 0
 
     def compute(self, list_):
-        i = 0
+        #i = 0
         for sample in list_:
-            i += 1
-            if i == 1:
+            self.i += 1
+            if self.i == 1:
                 self.m = sample
                 self.CUSUM = sample
                 CUSUM_p = self.CUSUM
@@ -65,6 +65,9 @@ class Cusum():
 
     def adjust_th(self, th):
         self.th = th
+
+    def get_cusum_value(self):
+        return self.CUSUM
 
     # N-1 volte
     # N-esima : new_th = new_th + 3 [ self.alpha * var + (1 - self.alpha) * pow((sample - m_p), 2)]

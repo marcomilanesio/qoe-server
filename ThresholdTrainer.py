@@ -42,7 +42,7 @@ class Cusum():
                 self.CUSUMvar = self.alpha * self.CUSUMvar + (1 - self.alpha) * pow((self.CUSUM - self.CUSUMm), 2)
 
     def adjust_threshold(self):
-        new_th = 0 * self.CUSUMm + 1 * self.CUSUMvar
+        new_th = 0 * self.CUSUMm + 3 * self.CUSUMvar
         return new_th
 
 
@@ -72,20 +72,21 @@ class ThresholdTrainer():
         else:
             step_nr = None
         if step_nr:
-            query = '''select sid, max(rtt_avg) from %s where step_nr = %d and
-                clientid = %d group by sid order by sid asc;''' % (self.dbconn.get_table_names()['tracetable'],
-                                                                   step_nr, self.clientid)
+            query = '''select sid, max(avg) from %s where hop_nr = %d and
+                probeid = %d group by sid order by sid asc limit %d;''' % (self.dbconn.get_table_names()['tracetable'],
+                                                                  step_nr, self.clientid, self.N)
         if cusum_name == 'cusumTHTTPTTCP':
-            query = '''select sid, (t_http - t_tcp) as diff from %s where clientid = %d''' % \
-                    (self.dbconn.get_table_names()['clienttable'], self.clientid)
+            query = '''select sid, (sum(t_http) - sum(t_tcp)) as diff from %s where probeid = %d group by sid
+            order by sid asc limit %d''' % (self.dbconn.get_table_names()['servicestable'], self.clientid, self.N)
 
         if query:
             res = self.dbconn.execute_query(query)
             return res
 
 if __name__ == '__main__':
-    clientid = 1478414590
-    t = ThresholdTrainer(clientid, 5)
+    clientid = 6757187
+    num_training_sessions = 100
+    t = ThresholdTrainer(clientid, num_training_sessions)
     t.add_cusum()
     res = {}
 
@@ -104,7 +105,7 @@ if __name__ == '__main__':
     res['cusumTHTTPTTCP'] = step4
 
     i = 0
-    while i < 661:
+    while i < num_training_sessions - 1:
         i += 1
         for k, cusum in t.cusum_objects.iteritems():
             c = t.cusum_objects[k]
