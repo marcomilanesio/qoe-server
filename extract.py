@@ -32,7 +32,7 @@ class DBConn():
         res = self.query("describe {}".format(self.tabname))
         return [x[0] for x in res]
 
-    def get_sessions_id(self,howmany=None):
+    def get_sessions_id(self, howmany=None):
         if not howmany:
              q = '''select distinct sid, probe_id, session_url, session_start from {}'''.format(self.tabname)
         else:
@@ -85,8 +85,11 @@ class Session():
 
         
 class attrdict(dict):
-    def __getattr__(self, k): return self[k]
-    def __setattr__(self, k, v): self[k] = v
+    def __getattr__(self, k):
+        return self[k]
+
+    def __setattr__(self, k, v):
+        self[k] = v
 
 
 class Extractor():
@@ -99,7 +102,7 @@ class Extractor():
         id_ = ['sid', 'probe_id', 'session_url', 'session_start']
         sessions_id = self.db.get_sessions_id(howmany)
         for id_session in sessions_id:
-            dic = {k:v for k,v in zip(id_, list(id_session))}
+            dic = {k: v for k, v in zip(id_, list(id_session))}
             if re.search(self.url, dic['session_url']):
                 session = self.db.get_complete_session(dic)
                 res.append(session)

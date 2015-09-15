@@ -26,20 +26,21 @@ class Reasoner:
 
     def gather_measurements(self):
         measurements = []
-        metric = namedtuple('metrics', ['passive', 'ping', 'trace', 'secondary'])
-        session = self.sessions_list[0].__dict__
-        passive = Reasoner._process_passive(session['other'])
-        secondary = session['secondary']
-        ping = session['ping']
-        trace = session['trace']
-        metric.passive = passive
-        metric.ping = ping
-        metric.trace = trace
-        metric.secondary = secondary
-        measurements.append(metric)
-        return measurements
-        #for session in self.sessions_list:
+        for session in self.sessions_list:
             #session dict_keys(['secondary', 'local_diagnosis', 'ping', '_check', 'trace', 'attributes', 'location', 'other'])
-        
+            metric = namedtuple('metrics', ['passive', 'ping', 'trace', 'secondary'])
+            session = self.sessions_list[0].__dict__
+            passive = Reasoner._process_passive(session['other'])
+            secondary = session['secondary']
+            ping = session['ping']
+            trace = session['trace']
+            metric.passive = passive
+            metric.ping = ping
+            metric.trace = trace
+            metric.secondary = secondary
+            measurements.append(metric)
+        return measurements
+
     def diagnose(self):
-        measurements = self.gather_measurements()
+        measurements = self.gather_measurements() # all the measurements for a single url
+        print(len(measurements))
