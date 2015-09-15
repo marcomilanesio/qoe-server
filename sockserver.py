@@ -26,18 +26,16 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         # self.request is the TCP socket connected to the client
-        self.data = self.request.recv(1024).decode().strip()
-        print("{0} asked for {1}:".format(self.client_address[0], self.data))
-        if not check_url(self.data):
+        self.url = self.request.recv(1024).decode().strip()
+        print("{0} asked for {1}:".format(self.client_address[0], self.url))
+        if not check_url(self.url):
             answer = "No results found\n"
             self.request.sendall(answer.encode())
             return
-    
-        e = Extractor(self.data)
-        res = e.extract(None)
-        e.close()
-        r = Reasoner(res, self.data)
-        r.diagnose()
+
+        r = Reasoner()
+        r.diagnose(self.url)
+        res = []
         # just send back the same data, but upper-cased
         answer = "Found {} results\n".format(len(res))
         self.request.sendall(answer.encode())

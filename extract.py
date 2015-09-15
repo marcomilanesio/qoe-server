@@ -37,7 +37,8 @@ class DBConn:
         if not howmany:
              q = '''select distinct sid, probe_id, session_url, session_start from {}'''.format(self.tabname)
         else:
-             q = '''select distinct sid, probe_id, session_url, session_start from {0} limit {1}'''.format(self.tabname, int(howmany)) 
+             q = '''select distinct sid, probe_id, session_url, session_start from {0} limit {1}'''.format(self.tabname,
+                                                                                                           int(howmany))
         return self.query(q)
 
     def get_complete_session(self, dic): 
@@ -47,7 +48,7 @@ class DBConn:
                .format(self.tabname, dic['sid'], dic['probe_id'], dic['session_url'], dic['session_start'])
         all_ = self.query(q)
         for tup in all_:
-            session.fill_attributes({k:v for k,v in zip(self.attributes, list(tup))})
+            session.fill_attributes({k: v for k, v in zip(self.attributes, list(tup))})
         return session
 
 
@@ -81,7 +82,7 @@ class Session:
         if not self.local_diagnosis:
             self.local_diagnosis = local_diag
             self._check |= set([k for k in local_diag])
-        remaining = {k:v for k,v in dic.items() if k not in self._check}
+        remaining = {k:v for k, v in dic.items() if k not in self._check}
         self.other = attrdict(remaining)
 
         

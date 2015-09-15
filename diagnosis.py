@@ -33,7 +33,6 @@ class DB:
             unique(url, probe_id))'''.format(RESULT_TABLE)
         self.execute_query(q)
 
-
     def execute_query(self, query, tup=None):
         create = re.compile('create', re.IGNORECASE)
         select = re.compile('select', re.IGNORECASE)
@@ -61,75 +60,49 @@ class DB:
 
 
 class DiagnosisManager:
-    def __init__(self, dbname, url):
+    def __init__(self, dbname, url, probe_id):
         self.url = url
         self.db = DB(dbname)
+        self.requesting = probe_id
         self.passive_thresholds = self.get_passive_thresholds()
-        print('ok')
+        if self.passive_thresholds:
+           self.cusums = self.get_cusums()
 
     def get_passive_thresholds(self):
-        q = '''select flt, http, tcp, dim, cnt from {0} where url like '%{1}%' '''.format(PASSIVE_TH_TABLE, self.url)
+        q = '''select flt, http, tcp, dim, cnt from {0} where url like '%{1}%' and probe_id = {2} '''\
+            .format(PASSIVE_TH_TABLE, self.url, self.requesting)
         try:
             res = self.db.execute_query(q)
             data = res[0]
             return {'full_load_time_th': data[0], 'http_th': data[1], 'tcp_th': data[2],
                     'dim_th': data[3], 'count': data[4]}
         except IndexError:
+            print("Never browsed...")
             return None
 
-    def get_passive_data(self, sid):
-        pkeys = ['sid', 'session_url', 'session_start', 'server_ip', 'full_load_time',
-                 'page_dim', 'cpu_percent', 'mem_percent', 'is_sent']
-        d = {}
-        q = "select {0} from {1} where sid = {2} and session_url like '%{3}%'".format(','.join(pkeys), self.db.tables['aggr_sum'], sid, self.url)
-        res = self.db.execute(q)
-        for idx, el in enumerate(res[0]):
-            d[pkeys[idx]] = el
-        return d
-
-    def get_active_data(self, sid):
-        akeys = ['sid', 'session_url', 'ip_dest', 'remote_ip', 'ping', 'trace']
-        a = []
-        q = "select {0} from {1} where sid = {2} and session_url like '%{3}%'".format(','.join(akeys), self.db.tables['active'], sid, self.url)
-        res = self.db.execute(q)
-        for row in res:
-            d = {}
-            for idx, el in enumerate(row):
-                try:
-                    d[akeys[idx]] = json.loads(el)
-                except (TypeError, ValueError):
-                    d[akeys[idx]] = el
-            a.append(d)
-        return a
-
-    def get_browser_data(self, sid):
-        bkeys = ['sid', 'base_url', 'ip', 'netw_bytes', 'nr_obj', 'sum_syn', 'sum_http', 'sum_rcv_time']
-        b = []
-        q = "select {0} from {1} where sid = {2}".format(','.join(bkeys), self.db.tables['aggr_det'], sid)
-        res = self.db.execute(q)
-        for row in res:
-            d = {}
-            for idx, el in enumerate(row):
-                d[bkeys[idx]] = el
-            b.append(d)
-        return b
-
-    def get_cusums(self, url):
+    def get_cusums(self):
+        cusums = {}
         names = ['cusumT1', 'cusumD1', 'cusumD2', 'cusumDH']
-        q = '''select {0} from {1} where url = \'{2}\''''.format(','.join(names), self.table_cusum_th, url)
-        res = self.db.execute(q)
+        q = '''select {0} from {1} where url like '%{2}%' and probe_id = {3}'''.format(','.join(names), CUSUM_TH_TABLE,
+                                                                                       self.url, self.requesting)
+        res = self.db.execute_query(q)
         if len(res) == 0:
-            logger.info("No cusums available for url {}: creating new ones.".format(url))
+            print("No cusums available for url {}: creating new ones.".format(self.url))
             return None
         if len(res) > 1:
-            logger.warning("Got multiple values for url {}".format(url))
+            print("Got multiple values for url {}".format(self.url))
         row = res[0]
         for idx, el in enumerate(row):
             dic = json.loads(el)
-            self.cusums[names[idx]] = Cusum(name=dic['name'], th=dic['th'],
-                                            value=dic['cusum'], mean=dic['mean'], var=dic['var'],
-                                            count=dic['count'])
-        return self.cusums
+            cusums[names[idx]] = Cusum(name=dic['name'], th=dic['th'], value=dic['cusum'], mean=dic['mean'],
+                                       var=dic['var'], count=dic['count'])
+        return cusums
+
+    def insert_first_locals(self, flt, http, tcp, dim):
+        q = "insert into {0}(url, probe_id, flt, http, tcp, dim, cnt) values "\
+            .format(PASSIVE_TH_TABLE)
+        q += "('{0}', {1}, {2}, {3}, {4}, {5}, 1)".format(self.url, self.requesting, flt, http, tcp, dim)
+        self.db.execute_query(q)
 
     def update_cusums(self, url, first=False):
         keys = list(self.cusums.keys())
@@ -137,57 +110,62 @@ class DiagnosisManager:
         for k in keys:
             d[k] = self.cusums[k].__dict__
         if first:
-            q = '''insert into {0} (url, {1}) values ('{2}','''.format(self.table_cusum_th, ','.join(keys), url)
+            q = '''insert into {0} (url, probe_id, {2}) values ('{3}', {4}'''.format(CUSUM_TH_TABLE, ','.join(keys),
+                                                                                     self.url, self.requesting)
             q += ','.join("'" + json.dumps(d[k]) + "'" for k in keys) + ')'
-            self.db.execute(q)
+            self.db.execute_query(q)
         else:
             for k, v in self.cusums.items():
-                q = '''update {0} set {1} = {2} where url = '{3}' '''.format(self.table_cusum_th, k, "'" + json.dumps(d[k]) + "'", url)
+                q = '''update {0} set {1} = {2} where url = '{3}' and probe_id = {4}'''\
+                    .format(self.table_cusum_th, k, "'" + json.dumps(d[k]) + "'", self.url, self.requesting)
                 self.db.execute(q)
-        logger.info("Cusum table updated.")
+        print("Cusum table updated.")
 
-    def prepare_for_diagnosis(self, sid):
+    def prepare_for_diagnosis(self, measurement):
         TRAINING = 100
-        if not sid:
-            logger.error("sid not specified. Unable to run diagnosis.")
+        if not measurement.passive.sid:
+            print("sid not specified. Unable to run diagnosis.")
             return
-        passive = self.get_passive_data(sid)
-        active = self.get_active_data(sid)
-        browser = self.get_browser_data(sid)
 
-        locals = self.get_passive_thresholds()
-        if self.get_cusums(passive['session_url']):
-            logger.info("Cusums loaded")
+        locals_th = self.get_passive_thresholds()
+        if self.get_cusums():
+            print("Cusums loaded")
         # get current data for cusum update
 
-        trace = [x['trace'] for x in active if x['trace'] is not None][0]
-        h1 = [x for x in trace if x['hop_nr'] == 1][0]['rtt']['max']
-        h2 = [x for x in trace if x['hop_nr'] == 2][0]['rtt']['max']
-        h3 = [x for x in trace if x['hop_nr'] == 3][0]['rtt']['max']
-        http_time = sum([x['sum_http'] for x in browser])
-        tcp_time = sum([x['sum_syn'] for x in browser])
+        #trace = [x['trace'] for x in active if x['trace'] is not None][0]
+        trace = measurement.trace
+        h1 = [x for x in trace if x['trace_hop_nr'] == 1][0]['trace_rtt_max']
+        h2 = [x for x in trace if x['trace_hop_nr'] == 2][0]['trace_rtt_max']
+        try:
+            h3 = [x for x in trace if x['trace_hop_nr'] == 3][0]['trace_rtt_max']
+        except KeyError:  # FIXME quick & dirty
+            h3 = h2 + 0.1
 
-        if not locals:
-            logger.warning("First time hitting {0}: using current values.".format(self.url))
-            time_th = passive['full_load_time'] + 1000
+        http_time = sum([x['secondary_sum_http'] for x in measurement.secondary])
+        tcp_time = sum([x['secondary_sum_syn'] for x in measurement.secondary])
+
+        if not locals_th:
+            print("First time hitting {0}: using current values.".format(self.url))
+            time_th = measurement.passive.full_load_time + 1000
             http_th = http_time + 50
             tcp_th = tcp_time + 50
-            dim_th = passive['page_dim'] + 5000
+            dim_th = measurement.passive.page_dim + 5000
             #rcv_th = sum([x['sum_rcv_time'] for x in browser]) + 50  # TODO add rcv_th to local_diag
             self.insert_first_locals(time_th, http_th, tcp_th, dim_th)
         else:
-            time_th = locals['full_load_time_th']
-            dim_th = locals['dim_th']
-            http_th = locals['http_th']
-            tcp_th = locals['tcp_th']
+            time_th = locals_th['full_load_time_th']
+            dim_th = locals_th['dim_th']
+            http_th = locals_th['http_th']
+            tcp_th = locals_th['tcp_th']
 
          # TODO: find a way to have threshold setting
         t1 = h1 + 0.1
         d1 = h2 - h1 + 0.2
-        try:       # TODO quick fix for hop3 not responding to ping (None)
-            d2 = h3 - h2 + 0.3
-        except TypeError:
-            d2 = d1 + 0.3
+        d2 = h3 - h2 + 0.3
+        #try:       # TODO quick fix for hop3 not responding to ping (None)
+        #    d2 = h3 - h2 + 0.3
+        #except TypeError:
+        #    d2 = d1 + 0.3
         dh = http_time - tcp_time + 0.5
 
         if not self.cusums:
@@ -195,7 +173,7 @@ class DiagnosisManager:
             self.cusums['cusumD1'] = Cusum(name='cusumD1', th=d1, value=d1)
             self.cusums['cusumD2'] = Cusum(name='cusumD2', th=d2, value=d2)
             self.cusums['cusumDH'] = Cusum(name='cusumDH', th=dh, value=dh)
-            self.update_cusums(passive['session_url'], first=True)
+            self.update_cusums(self.url, first=True)
         else:
             if self.cusums['cusumT1'].get_count() < TRAINING:
                 self.cusums['cusumT1'].compute(h1)
@@ -301,11 +279,7 @@ class DiagnosisManager:
 
         return result, details
 
-    def insert_first_locals(self, flt, http, tcp, dim):
-        q = "insert into {0}(url, flt, http, tcp, dim, count) values "\
-            .format(self.table_passive_th)
-        q += "('{0}', {1}, {2}, {3}, {4}, 1)".format(self.url, flt, http, tcp, dim)
-        self.db.execute(q)
+
 
     def store_diagnosis_result(self, sid, diagnosis):
         q = "select session_start, session_url from {0} where sid = {1}".\
@@ -317,3 +291,4 @@ class DiagnosisManager:
         q += " ({0}, '{1}', '{2}', '{3}')".format(sid, url, when, json.dumps(diagnosis))
         self.db.execute(q)
         logger.debug("Diagnosis result saved.")
+
