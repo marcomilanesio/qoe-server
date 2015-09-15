@@ -132,7 +132,6 @@ class Diagnosis():
         else:
             return 'generic network (far).'
 
-
     def get_probes_on_lan(self, probeid):
         q = '''select distinct probeid from {0} where hop_addr in (select distinct hop_addr from {0} where
         probeid = {1} and hop_nr = 1)'''.format(self.tracetable, probeid)

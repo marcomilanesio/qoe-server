@@ -31,6 +31,13 @@ class DataManager():
         self.db = DBConn()
         self.probeip = probeip
         self.json_data = json_data
+
+        self.sessiontable = self.db.get_table_names()['sessiontable']
+        self.summarytable = self.db.get_table_names()['summarytable']
+        self.servicestable = self.db.get_table_names()['servicestable']
+        self.pingtable = self.db.get_table_names()['pingtable']
+        self.tracetable = self.db.get_table_names()['tracetable']
+        logger.info("Loaded DB tables.")
         #try:
         #    self._create_table()
         #except psycopg2.ProgrammingError:
@@ -79,10 +86,109 @@ class DataManager():
             {7},{8},{9},{10},'{11}','{12}')'''.format(stub, probeid, self.probeip, sid, session_url, session_start,
                                                       server_ip, full_load_time, page_dim, cpu_percent, mem_percent,
                                                       services, active_measurements)
-            #print query
             try:
                 self.db.insert_data_to_db(query)
                 done.append(sid)
             except:
                 logger.error(query)
+
+        logger.info("Sessions loaded.")
+        self.import_data()
         return done
+
+    def import_data(self):
+        data = {}
+        q = '''select a.probeid, a.probeip, a.sid, a.session_url, a.session_start, a.server_ip, a.full_load_time,
+        a.page_dim, a.cpu_percent, a.mem_percent, a.services, a.active_measurements
+        from {0} a
+        LEFT JOIN {1} b on (a.sid = b.sid and a.probeid = b.probeid and a.session_start = b.session_start)
+        where b.sid is NULL;
+        '''.format(self.sessiontable, self.summarytable)
+        res = self.db.execute_query(q)
+        for measure in res:
+            data[measure[2]] = {'probeid': measure[0],
+                                'probeip': measure[1],
+                                'session_url': measure[3],
+                                'session_start': measure[4],
+                                'server_ip': measure[5],
+                                'full_load_time': measure[6],
+                                'page_dim': measure[7],
+                                'cpu_percent': measure[8],
+                                'mem_percent': measure[9],
+                                'services': json.loads(measure[10]),
+                                'active_measurements': json.loads(measure[11])}
+
+        logger.info("Fetched {0} new sessions from the db".format(len(data)))
+
+        for sid, session in data.iteritems():
+            q = '''insert into {0} (probeid, probeip, sid, session_url, session_start, server_ip, full_load_time,
+            page_dim, cpu_percent,mem_percent ) values
+            ({1}, '{2}', {3}, '{4}', '{5}', '{6}', {7}, {8}, {9}, {10})'''.format(self.summarytable, session['probeid'],
+                                                                                  session['probeip'], sid,
+                                                                                  session['session_url'],
+                                                                                  session['session_start'],
+                                                                                  session['server_ip'],
+                                                                                  session['full_load_time'],
+                                                                                  session['page_dim'],
+                                                                                  session['cpu_percent'],
+                                                                                  session['mem_percent'])
+            self.db.insert_data_to_db(q)
+
+            for service in session['services']:
+                q1 = '''insert into {0} (probeid, sid, session_url, session_start, service_base_url, service_ip,
+                netw_bytes, t_tcp, t_http, rcv_time, nr_obj) values ({1}, {2}, '{3}', '{4}', '{5}', '{6}', {7}, {8},
+                {9}, {10}, {11})'''.format(self.servicestable, session['probeid'], sid, session['session_url'],
+                                           session['session_start'], service['base_url'], service['ip'],
+                                           service['netw_bytes'], service['sum_syn'], service['sum_http'],
+                                           service['sum_rcv_time'], service['nr_obj'])
+
+                self.db.insert_data_to_db(q1)
+
+            for ip, active_measure in session['active_measurements'].iteritems():
+                trace = None
+                ping = json.loads(active_measure['ping'])
+                if 'trace' in active_measure.keys() and active_measure['trace'] is not None:
+                    trace = json.loads(active_measure['trace'])
+                if len(ping) == 0:
+                    logger.error("Loaded 0 len ping dictionary, skipping")
+                    continue
+
+                try:
+                    q2 = '''insert into {0} (probeid, sid, session_start, server_ip, host, min, max, avg, std, loss) values
+                    ({1}, {2}, '{3}', '{4}', '{5}', {6}, {7}, {8}, {9}, {10})'''.format(self.pingtable, session['probeid'],
+                                                                                        sid, session['session_start'],
+                                                                                        session['server_ip'], ping['host'],
+                                                                                        ping['min'], ping['max'],
+                                                                                        ping['avg'], ping['std'],
+                                                                                        ping['loss'])
+                    self.db.insert_data_to_db(q2)
+                except KeyError as e:
+                    print e
+                    exit(-1)
+
+                if not trace:
+                    logger.debug("Trace not present [either hop or service], skipping")
+                    continue
+
+                if len(trace) == 0:
+                    logger.error("Loaded 0 len trace list, skipping")
+                    continue
+
+                for step in trace:
+                    rtt = step['rtt']
+                    if rtt == -1:
+                        q3 = '''insert into {0} (probeid, sid, session_start, server_ip, hop_nr, min, max, avg,
+                        std, endpoints) values ({1}, {2}, '{3}', '{4}', {5}, {6}, {7},
+                        {8}, {9}, '{10}')'''.format(self.tracetable, session['probeid'], sid, session['session_start'],
+                                                    session['server_ip'], step['hop_nr'], -1, -1, -1, -1,
+                                                    json.dumps(step['endpoints']))
+                    else:
+                        q3 = '''insert into {0} (probeid, sid, session_start, server_ip, hop_addr, hop_nr, min, max,
+                        avg, std, endpoints) values ({1}, {2}, '{3}', '{4}', '{5}', {6}, {7}, {8}, {9}, {10}, '{11}')
+                        '''.format(self.tracetable, session['probeid'], sid, session['session_start'],
+                                   session['server_ip'], step['ip_addr'], step['hop_nr'], rtt['min'], rtt['max'],
+                                   rtt['avg'], rtt['std'], json.dumps(step['endpoints']))
+
+                    self.db.insert_data_to_db(q3)
+
+        logger.info("Session(s) successfully imported.")
