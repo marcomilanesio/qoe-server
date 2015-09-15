@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import socketserver
 import urllib.request
 from extract import Extractor

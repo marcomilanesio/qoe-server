@@ -24,7 +24,7 @@ class Reasoner:
         passive.cpu_percent = dic['cpu_percent']
         return passive
 
-    def gather_measurement(self):
+    def gather_measurements(self):
         measurements = []
         metric = namedtuple('metrics', ['passive', 'ping', 'trace', 'secondary'])
         session = self.sessions_list[0].__dict__

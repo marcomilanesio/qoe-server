@@ -23,7 +23,7 @@ class DB:
             self.conn = sqlite3.connect(dbname)
 
     def create_tables(self):
-        q = '''create table if not exists {0} (url TEXT, probe_id INT, flt INT, http INT, tcp INT, dim INT,
+        q = '''create table if not exists {0} (url TEXT, probe_id INT, flt INT, http INT, tcp INT, dim INT, cnt INT,
             unique(url,probe_id))'''.format(PASSIVE_TH_TABLE)
         self.execute_query(q)
         q = '''CREATE TABLE IF NOT EXISTS {0} (name TEXT, url TEXT, probe_id INT, cusumT1 TEXT, cusumD1 TEXT,
@@ -68,16 +68,13 @@ class DiagnosisManager:
         print('ok')
 
     def get_passive_thresholds(self):
-        q = '''select flt, http, tcp, dim, count from {0} where url like '%{1}%' '''.format(PASSIVE_TH_TABLE, self.url)
+        q = '''select flt, http, tcp, dim, cnt from {0} where url like '%{1}%' '''.format(PASSIVE_TH_TABLE, self.url)
         try:
             res = self.db.execute_query(q)
             data = res[0]
             return {'full_load_time_th': data[0], 'http_th': data[1], 'tcp_th': data[2],
                     'dim_th': data[3], 'count': data[4]}
-        except sqlite3.OperationalError:
-            q = '''create table if not exists {0} (url TEXT, flt INT, http INT, tcp INT, dim INT, unique(url)
-                '''.format(PASSIVE_TH_TABLE)
-            self.db.execute_query(q)
+        except IndexError:
             return None
 
     def get_passive_data(self, sid):
