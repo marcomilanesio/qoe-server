@@ -34,10 +34,9 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             return
 
         r = Reasoner()
-        r.diagnose(self.url)
-        res = []
+        res = r.diagnose(self.url)
         # just send back the same data, but upper-cased
-        answer = "Found {} results\n".format(len(res))
+        answer = "{} \n".format(res)
         self.request.sendall(answer.encode())
 
 if __name__ == "__main__":

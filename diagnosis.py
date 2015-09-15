@@ -29,8 +29,8 @@ class DB:
         q = '''CREATE TABLE IF NOT EXISTS {0} (name TEXT, url TEXT, probe_id INT, cusumT1 TEXT, cusumD1 TEXT,
               cusumD2 TEXT, cusumDH TEXT, unique(name,url,probe_id) )'''.format(CUSUM_TH_TABLE)
         self.execute_query(q)
-        q = '''CREATE TABLE IF NOT EXISTS {0} (url TEXT, probe_id INT, diag_result TEXT, diag_details TEXT,
-            unique(url, probe_id))'''.format(RESULT_TABLE)
+        q = '''CREATE TABLE IF NOT EXISTS {0} (sid INT, url TEXT, when_browsed datetime, probe_id INT, diagnosis TEXT,
+              unique(url, when_browsed, probe_id))'''.format(RESULT_TABLE)
         self.execute_query(q)
 
     def execute_query(self, query, tup=None):
@@ -233,11 +233,11 @@ class DiagnosisManager:
                 diff = http_time - tcp_time
         #        diagnosis['result'], diagnosis['details'] = self._check_network(measurement, diff)
 
-        q = "update {0} set count = count + 1 where url like '%{1}%' and probe_id = {2}"\
-            .format(CUSUM_TH_TABLE, self.url, self.requesting)
+        q = "update {0} set cnt = cnt + 1 where url like '%{1}%' and probe_id = {2}"\
+            .format(PASSIVE_TH_TABLE, self.url, self.requesting)
+
         self.db.execute_query(q)
-        print(diagnosis)
-        #self.store_diagnosis_result(sid, diagnosis)
+        self.store_diagnosis_result(measurement, diagnosis)
         return diagnosis
 
     def _check_network(self, active, diff):
@@ -283,14 +283,11 @@ class DiagnosisManager:
 
         return result, details
 
-    def store_diagnosis_result(self, sid, diagnosis):
-        q = "select session_start, session_url from {0} where sid = {1}".\
-            format(self.db.tables['aggr_sum'], sid)
-        res = self.db.execute(q)
-        when = res[0][0]
-        url = res[0][1]
-        q = "insert into {0} (sid, url, when_browsed, diagnosis) values".format(self.table_result)
-        q += " ({0}, '{1}', '{2}', '{3}')".format(sid, url, when, json.dumps(diagnosis))
-        self.db.execute(q)
-        logger.debug("Diagnosis result saved.")
+    def store_diagnosis_result(self, measurement, diagnosis):
+        sid = measurement.passive.sid
+        when = measurement.passive.session_start
+        q = "insert into {0} (sid, url, when_browsed, probe_id, diagnosis) values".format(RESULT_TABLE)
+        q += " ({0}, '{1}', '{2}', {3}, '{4}')".format(sid, self.url, when, self.requesting, json.dumps(diagnosis))
+        self.db.execute_query(q)
+        print("Diagnosis result saved.")
 

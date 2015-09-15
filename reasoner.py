@@ -51,6 +51,7 @@ class Reasoner:
                 other_probes.append(m)
                 continue
             diag = dm.run_diagnosis(m)
+            print(diag)
 
 
 
