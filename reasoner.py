@@ -50,7 +50,7 @@ class Reasoner:
             if not m.passive.probe_id == self.requesting:
                 other_probes.append(m)
                 continue
-            dm.prepare_for_diagnosis(m)
+            diag = dm.run_diagnosis(m)
 
 
 

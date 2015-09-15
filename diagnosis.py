@@ -67,6 +67,8 @@ class DiagnosisManager:
         self.passive_thresholds = self.get_passive_thresholds()
         if self.passive_thresholds:
            self.cusums = self.get_cusums()
+        else:
+            self.cusums = {}
 
     def get_passive_thresholds(self):
         q = '''select flt, http, tcp, dim, cnt from {0} where url like '%{1}%' and probe_id = {2} '''\
@@ -88,7 +90,7 @@ class DiagnosisManager:
         res = self.db.execute_query(q)
         if len(res) == 0:
             print("No cusums available for url {}: creating new ones.".format(self.url))
-            return None
+            return dict.fromkeys(names)
         if len(res) > 1:
             print("Got multiple values for url {}".format(self.url))
         row = res[0]
@@ -104,21 +106,21 @@ class DiagnosisManager:
         q += "('{0}', {1}, {2}, {3}, {4}, {5}, 1)".format(self.url, self.requesting, flt, http, tcp, dim)
         self.db.execute_query(q)
 
-    def update_cusums(self, url, first=False):
+    def update_cusums(self, first=False):
         keys = list(self.cusums.keys())
         d = dict.fromkeys(keys, None)
         for k in keys:
             d[k] = self.cusums[k].__dict__
         if first:
-            q = '''insert into {0} (url, probe_id, {2}) values ('{3}', {4}'''.format(CUSUM_TH_TABLE, ','.join(keys),
-                                                                                     self.url, self.requesting)
+            q = '''insert into {0} (url, probe_id, {1}) values ('{2}', {3},'''.format(CUSUM_TH_TABLE, ','.join(keys),
+                                                                                      self.url, self.requesting)
             q += ','.join("'" + json.dumps(d[k]) + "'" for k in keys) + ')'
             self.db.execute_query(q)
         else:
             for k, v in self.cusums.items():
                 q = '''update {0} set {1} = {2} where url = '{3}' and probe_id = {4}'''\
-                    .format(self.table_cusum_th, k, "'" + json.dumps(d[k]) + "'", self.url, self.requesting)
-                self.db.execute(q)
+                    .format(CUSUM_TH_TABLE, k, "'" + json.dumps(d[k]) + "'", self.url, self.requesting)
+                self.db.execute_query(q)
         print("Cusum table updated.")
 
     def prepare_for_diagnosis(self, measurement):
@@ -128,7 +130,7 @@ class DiagnosisManager:
             return
 
         locals_th = self.get_passive_thresholds()
-        if self.get_cusums():
+        if any([self.cusums[i] for i in self.cusums]):
             print("Cusums loaded")
         # get current data for cusum update
 
@@ -168,12 +170,12 @@ class DiagnosisManager:
         #    d2 = d1 + 0.3
         dh = http_time - tcp_time + 0.5
 
-        if not self.cusums:
+        if not any([self.cusums[i] for i in self.cusums]):
             self.cusums['cusumT1'] = Cusum(name='cusumT1', th=h1, value=h1)
             self.cusums['cusumD1'] = Cusum(name='cusumD1', th=d1, value=d1)
             self.cusums['cusumD2'] = Cusum(name='cusumD2', th=d2, value=d2)
             self.cusums['cusumDH'] = Cusum(name='cusumDH', th=dh, value=dh)
-            self.update_cusums(self.url, first=True)
+            self.update_cusums(first=True)
         else:
             if self.cusums['cusumT1'].get_count() < TRAINING:
                 self.cusums['cusumT1'].compute(h1)
@@ -183,7 +185,7 @@ class DiagnosisManager:
                 self.cusums['cusumD2'].compute(d2)
             if self.cusums['cusumDH'].get_count() < TRAINING:
                 self.cusums['cusumDH'].compute(http_time - tcp_time)
-            self.update_cusums(passive['session_url'])
+            self.update_cusums()
 
         mem_th = cpu_th = 50
 
@@ -194,46 +196,48 @@ class DiagnosisManager:
                               'mem_th': mem_th,
                               'cpu_th': cpu_th}
 
-        return passive, active, browser, passive_thresholds
+        return http_time, tcp_time, passive_thresholds
 
-    def run_diagnosis(self, sid):
+    def run_diagnosis(self, measurement):
         diagnosis = OrderedDict({'result': None, 'details': None})
-        passive_m, active_m, browser_m, passive_thresholds = self.prepare_for_diagnosis(sid)
+        http_time, tcp_time, passive_thresholds = self.prepare_for_diagnosis(measurement)
 
-        if not passive_m or not active_m or not browser_m or not passive_thresholds:
+        if not (measurement.passive and measurement.trace and measurement.ping
+                and measurement.secondary and passive_thresholds):
             diagnosis['result'] = 'Error'
             diagnosis['details'] = 'Unable to retrieve data'
             return diagnosis
 
-        if passive_m['full_load_time'] < passive_thresholds['time_th']:
+        if measurement.passive.full_load_time < passive_thresholds['time_th']:
             diagnosis['result'] = 'No problem found.'
             diagnosis['details'] = ''
         else:
-            if passive_m['mem_percent'] > passive_thresholds['mem_th'] or passive_m['cpu_percent'] > passive_thresholds['cpu_th']:
+            if measurement.passive.mem_percent > passive_thresholds['mem_th'] or \
+                            measurement.passive.cpu_percent > passive_thresholds['cpu_th']:
                 diagnosis['result'] = 'Client overloaded'
-                diagnosis['details'] = "mem = {0}%, cpu = {1}%".format(passive_m['mem_percent'], passive_m['cpu_percent'])
+                diagnosis['details'] = "mem = {0}%, cpu = {1}%".format(measurement.passive.mem_percent,
+                                                                       measurement.passive.cpu_percent)
                 return diagnosis
-            t_http = sum([x['sum_http'] for x in browser_m])
-            t_tcp = sum([x['sum_syn'] for x in browser_m])
-            if t_http < passive_thresholds['http_th']:
-                if passive_m['page_dim'] > passive_thresholds['dim_th']:
+
+            if http_time < passive_thresholds['http_th']:
+                if measurement.passive.page_dim > passive_thresholds['dim_th']:
                     diagnosis['result'] = 'Page too big'
-                    diagnosis['details'] = "page_dim = {0} bytes".format(passive_m['page_dim'])
-                elif t_tcp > passive_thresholds['tcp_th']:
+                    diagnosis['details'] = "page_dim = {0} bytes".format(measurement.passive.page_dim)
+                elif tcp_time > passive_thresholds['tcp_th']:
                     diagnosis['result'] = 'Web server too far'
-                    diagnosis['details'] = "sum_syn = {0} ms".format(t_tcp)
+                    diagnosis['details'] = "sum_syn = {0} ms".format(tcp_time)
                 else:
                     diagnosis['result'] = 'No problem found'
                     diagnosis['details'] = "Unable to get more details"
             else:
-                diff = t_http - t_tcp
-                diagnosis['result'], diagnosis['details'] = self._check_network(active_m, diff)
+                diff = http_time - tcp_time
+        #        diagnosis['result'], diagnosis['details'] = self._check_network(measurement, diff)
 
-        q = "update {0} set count = count + 1 where url like '%{1}%'"\
-            .format(self.table_passive_th, self.url)
-        self.db.execute(q)
-        logger.info(diagnosis)
-        self.store_diagnosis_result(sid, diagnosis)
+        q = "update {0} set count = count + 1 where url like '%{1}%' and probe_id = {2}"\
+            .format(CUSUM_TH_TABLE, self.url, self.requesting)
+        self.db.execute_query(q)
+        print(diagnosis)
+        #self.store_diagnosis_result(sid, diagnosis)
         return diagnosis
 
     def _check_network(self, active, diff):
@@ -278,8 +282,6 @@ class DiagnosisManager:
                 details = "Unable to get more details"
 
         return result, details
-
-
 
     def store_diagnosis_result(self, sid, diagnosis):
         q = "select session_start, session_url from {0} where sid = {1}".\
