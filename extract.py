@@ -12,7 +12,8 @@ params = {
 }
 tabname = "mplanetable"
 
-class DBConn():
+
+class DBConn:
     def __init__(self, params,tabname):
         self.conn = psycopg2.connect(**params)
         self.tabname = tabname
@@ -50,7 +51,7 @@ class DBConn():
         return session
 
 
-class Session():
+class Session:
     def __init__(self, list_):
         self._check = set()  # for tracking inserted attributes
         self.attributes = list_
@@ -92,7 +93,7 @@ class attrdict(dict):
         self[k] = v
 
 
-class Extractor():
+class Extractor:
     def __init__(self, url):
         self.db = DBConn(params, tabname)
         self.url = url
@@ -135,4 +136,4 @@ if __name__ == "__main__":
     res = e.extract(howmany=1)
     e.close()
     print(res)
-    
+
