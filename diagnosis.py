@@ -140,11 +140,15 @@ class DiagnosisManager:
         #trace = [x['trace'] for x in active if x['trace'] is not None][0]
         trace = measurement.trace
         h1 = [x for x in trace if x['trace_hop_nr'] == 1][0]['trace_rtt_max']
+        addr1 = [x for x in trace if x['trace_hop_nr'] == 1][0]['trace_ip_addr']
         h2 = [x for x in trace if x['trace_hop_nr'] == 2][0]['trace_rtt_max']
+        addr2 = [x for x in trace if x['trace_hop_nr'] == 2][0]['trace_ip_addr']
         try:
             h3 = [x for x in trace if x['trace_hop_nr'] == 3][0]['trace_rtt_max']
+            addr3 = [x for x in trace if x['trace_hop_nr'] == 3][0]['trace_ip_addr']
         except KeyError:  # FIXME quick & dirty
             h3 = h2 + 0.1
+            addr3 = 'n.a.'
 
         http_time = sum([x['secondary_sum_http'] for x in measurement.secondary])
         tcp_time = sum([x['secondary_sum_syn'] for x in measurement.secondary])
@@ -164,14 +168,25 @@ class DiagnosisManager:
             tcp_th = locals_th['tcp_th']
 
          # TODO: find a way to have threshold setting
-        t1 = h1 + 0.1
-        d1 = h2 - h1 + 0.2
-        d2 = h3 - h2 + 0.3
+        th_t1 = h1 + 0.1
+        th_d1 = h2 - h1 + 0.2
+        th_d2 = h3 - h2 + 0.3
         #try:       # TODO quick fix for hop3 not responding to ping (None)
         #    d2 = h3 - h2 + 0.3
         #except TypeError:
         #    d2 = d1 + 0.3
-        dh = http_time - tcp_time + 0.5
+        th_dh = http_time - tcp_time + 0.5
+
+        active_subset = {'hop1': {'ip': addr1, 'rtt': h1},
+                         'hop2': {'ip': addr2, 'rtt': h2},
+                         'hop3': {'ip': addr3, 'rtt': h3},
+                         'http_time': http_time,
+                         'tcp_time': tcp_time,
+                         'th_t1': th_t1,
+                         'th_d1': th_d1,
+                         'th_d2': th_d2,
+                         'th_dh': th_dh
+                         }
 
         if not any([self.cusums[i] for i in self.cusums]):
             self.cusums['cusumT1'] = Cusum(name='cusumT1', th=h1, value=h1)
@@ -199,12 +214,13 @@ class DiagnosisManager:
                               'mem_th': mem_th,
                               'cpu_th': cpu_th}
 
-        return http_time, tcp_time, passive_thresholds
+        return active_subset, passive_thresholds
 
     def run_diagnosis(self, measurement):
         diagnosis = OrderedDict({'result': None, 'details': None})
-        http_time, tcp_time, passive_thresholds = self.prepare_for_diagnosis(measurement)
-
+        active_subset, passive_thresholds = self.prepare_for_diagnosis(measurement)
+        http_time = active_subset['http_time']
+        tcp_time = active_subset['tcp_time']
         if not (measurement.passive and measurement.trace and measurement.ping
                 and measurement.secondary and passive_thresholds):
             diagnosis['result'] = 'Error'
@@ -233,8 +249,7 @@ class DiagnosisManager:
                     diagnosis['result'] = 'No problem found'
                     diagnosis['details'] = "Unable to get more details"
             else:
-                diff = http_time - tcp_time
-        #        diagnosis['result'], diagnosis['details'] = self._check_network(measurement, diff)
+                diagnosis['result'], diagnosis['details'] = self._check_network(active_subset)
 
         q = "update {0} set cnt = cnt + 1 where url like '%{1}%' and probe_id = {2}"\
             .format(PASSIVE_TH_TABLE, self.url, self.requesting)
@@ -244,29 +259,16 @@ class DiagnosisManager:
         logging.info("Diagnosis result stored {0} - {1}".format(self.url, self.requesting))
         return diagnosis
 
-    def _check_network(self, active, diff):
+    def _check_network(self, active_subset):
         result = details = None
-        trace = [x['trace'] for x in active if x['trace'] is not None][0]
-        first_hop = [x for x in trace if x['hop_nr'] == 1][0]
-        second_hop = [x for x in trace if x['hop_nr'] == 2][0]
-        third_hop = [x for x in trace if x['hop_nr'] == 3][0]
-
-        gw_addr = first_hop['ip_addr']
-        gw_rtt = first_hop['rtt']['avg']
-        second_addr = second_hop['ip_addr']
-        second_rtt = second_hop['rtt']['avg']
-        third_addr = third_hop['ip_addr']
-        try:
-            third_rtt = third_hop['rtt']['avg']
-        except TypeError:
-            third_rtt = second_rtt * 2  # FIXME: case when third hop does not answer ping
+        gw_addr, gw_rtt = active_subset['hop1']['ip'], active_subset['hop1']['rtt']
+        second_addr, second_rtt = active_subset['hop2']['ip'], active_subset['hop2']['rtt']
+        third_addr, third_rtt = active_subset['hop3']['ip'], active_subset['hop3']['rtt']
 
         if self.cusums['cusumT1'].compute(gw_rtt):
             result = 'Local congestion (LAN/GW)'
             details = "cusum on RTT to 1st hop {0}".format(gw_addr)
         else:
-            #d1 = [x-y for x, y in zip([second_rtt], [gw_rtt])]
-            #d2 = [x-y for x, y in zip([third_rtt], [second_rtt])]
             d1 = second_rtt - gw_rtt
             d2 = third_rtt - second_rtt
             if self.cusums['cusumD1'].compute(d1):
@@ -278,6 +280,7 @@ class DiagnosisManager:
                     details = "cusum on Delta1 [{0},{1}]".format(gw_addr, second_addr)
 
         if not result:
+            diff = active_subset['http_time'] - active_subset['tcp_time']
             if self.cusums['cusumDH'].compute(diff):
                 result = 'Remote Web Server'
                 details = "cusum on t_http - t_tcp"
