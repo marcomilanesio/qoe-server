@@ -124,7 +124,7 @@ class DiagnosisManager:
                 q = '''update {0} set {1} = {2} where url = '{3}' and probe_id = {4}'''\
                     .format(CUSUM_TH_TABLE, k, "'" + json.dumps(d[k]) + "'", self.url, self.requesting)
                 self.db.execute_query(q)
-        logging.info("Cusum table updated.")
+        #logging.info("Cusum table updated.")
 
     def prepare_for_diagnosis(self, measurement):
         TRAINING = 100
@@ -293,5 +293,4 @@ class DiagnosisManager:
         q = "insert into {0} (sid, url, when_browsed, probe_id, diagnosis) values".format(RESULT_TABLE)
         q += " ({0}, '{1}', '{2}', {3}, '{4}')".format(sid, self.url, when, self.requesting, json.dumps(diagnosis))
         self.db.execute_query(q)
-        logging.info("Diagnosis result saved.")
 

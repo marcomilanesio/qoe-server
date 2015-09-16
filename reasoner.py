@@ -45,17 +45,16 @@ class Reasoner:
         self.extract_data_for_url(url)
         dm = DiagnosisManager(dbname, url, self.requesting)
         measurements = self.gather_measurements()  # all the measurements for a single url
+        result = []
         other_probes = []
         for m in measurements:
             if not m.passive.probe_id == self.requesting:
                 other_probes.append(m)
                 continue
             diag = dm.run_diagnosis(m)
-            print(diag)
-
-
-
-
+            result.append((self.requesting, m.passive.sid, m.passive.session_start, url, diag))
+        for el in result:
+            print(el)
 
 
 if __name__ == "__main__":
