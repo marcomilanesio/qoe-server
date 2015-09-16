@@ -73,6 +73,12 @@ class DiagnosisManager:
             self.cusums = {}
         logging.info("Diagnosis Manager started ({0}) for {1}".format(self.url, self.requesting))
 
+    def get_diagnosed_sessions(self):
+        q = '''select sid, when_browsed from {0} where url like '%{1}%' and probe_id = {2}'''\
+            .format(RESULT_TABLE, self.url, self.requesting)
+        res = self.db.execute_query(q)
+        return res
+
     def get_passive_thresholds(self):
         q = '''select flt, http, tcp, dim, cnt from {0} where url like '%{1}%' and probe_id = {2} '''\
             .format(PASSIVE_TH_TABLE, self.url, self.requesting)

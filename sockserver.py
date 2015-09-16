@@ -29,7 +29,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         self.url = self.request.recv(1024).decode().strip()
         print("{0} asked for {1}:".format(self.client_address[0], self.url))
         if not check_url(self.url):
-            answer = "No results found\n"
+            answer = "URL not valid\n"
             self.request.sendall(answer.encode())
             return
 

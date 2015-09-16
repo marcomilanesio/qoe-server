@@ -41,20 +41,36 @@ class Reasoner:
             measurements.append(metric)
         return measurements
 
+    def filterout_diagnosed(self, measurements, already_diagnosed):
+        filtered = []
+        for m in measurements:
+            if m.passive.probe_id != self.requesting:
+                continue
+            for tup in already_diagnosed:
+                if m.passive.sid == tup[0] and str(m.passive.session_start) == tup[1]:
+                    break
+            else:
+                filtered.append(m)
+        return filtered
+
     def diagnose(self, url):
         self.extract_data_for_url(url)
         dm = DiagnosisManager(dbname, url, self.requesting)
         measurements = self.gather_measurements()  # all the measurements for a single url
         result = []
-        other_probes = []
-        for m in measurements:
-            if not m.passive.probe_id == self.requesting:
-                other_probes.append(m)
-                continue
+        already_diagnosed = dm.get_diagnosed_sessions()
+        filtered = self.filterout_diagnosed(measurements, already_diagnosed)
+        if not filtered:
+            print("no new sessions to diagnose")
+            return
+        for m in filtered:
             diag = dm.run_diagnosis(m)
             result.append((self.requesting, m.passive.sid, m.passive.session_start, url, diag))
-        for el in result:
-            print(el)
+        if result:
+            for el in result:
+                print(el)
+        else:
+            print("no new sessions found.")
 
 
 if __name__ == "__main__":
