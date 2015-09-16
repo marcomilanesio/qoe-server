@@ -169,13 +169,12 @@ class DiagnosisManager:
 
          # TODO: find a way to have threshold setting
         th_t1 = h1 + 0.1
-        th_d1 = h2 - h1 + 0.2
-        th_d2 = h3 - h2 + 0.3
-        #try:       # TODO quick fix for hop3 not responding to ping (None)
-        #    d2 = h3 - h2 + 0.3
-        #except TypeError:
-        #    d2 = d1 + 0.3
-        th_dh = http_time - tcp_time + 0.5
+        d1 = h2 - h1
+        th_d1 = d1 + 0.2
+        d2 = h3 - h2
+        th_d2 = d2 + 0.3
+        dh = http_time - tcp_time
+        th_dh = dh + 0.5
 
         active_subset = {'hop1': {'ip': addr1, 'rtt': h1},
                          'hop2': {'ip': addr2, 'rtt': h2},
