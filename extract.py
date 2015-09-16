@@ -13,7 +13,7 @@ params = {
 tabname = "mplanetable"
 
 
-class DBConn:
+class DinoDBConn:
     def __init__(self, params,tabname):
         self.conn = psycopg2.connect(**params)
         self.tabname = tabname
@@ -96,27 +96,27 @@ class attrdict(dict):
 
 class Extractor:
     def __init__(self, url):
-        self.db = DBConn(params, tabname)
+        self.dinodb = DinoDBConn(params, tabname)
         self.url = url
 
     def extract(self, howmany=None):
         res = []
         id_ = ['sid', 'probe_id', 'session_url', 'session_start']
-        sessions_id = self.db.get_sessions_id(howmany)
+        sessions_id = self.dinodb.get_sessions_id(howmany)
         for id_session in sessions_id:
             dic = {k: v for k, v in zip(id_, list(id_session))}
             if re.search(self.url, dic['session_url']):
-                session = self.db.get_complete_session(dic)
+                session = self.dinodb.get_complete_session(dic)
                 res.append(session)
         return res
 
     def close(self):
-        self.db.quit()
+        self.dinodb.quit()
         
 '''
 url = 'www.lemonde.fr'
 res = []
-db = DBConn(params, tabname)
+db = DinoDBConn(params, tabname)
 id_ = ['sid', 'probe_id', 'session_url', 'session_start'] 
 sessions_id = db.get_sessions_id(howmany=None)
 for id_session in sessions_id:
