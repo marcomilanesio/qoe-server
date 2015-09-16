@@ -13,6 +13,8 @@ PASSIVE_TH_TABLE = 'passive_threshold'
 CUSUM_TH_TABLE = 'cusum_threshold'
 RESULT_TABLE = 'diagnosis'
 
+logging.basicConfig(filename='diagnosis.log', format='%(asctime)s - %(levelname)s: %(message)s', level=logging.DEBUG)
+
 
 class DB:
     def __init__(self, dbname):
@@ -51,7 +53,7 @@ class DB:
                 self.conn.commit()
                 return c.lastrowid
             else:
-                print("Query not supported. {0}".format(query))
+                logging.error("Query not supported. {0}".format(query))
                 self.conn.commit()
         else:  # parameters in insert as tuple
             c.execute(query, tup)
@@ -69,6 +71,7 @@ class DiagnosisManager:
            self.cusums = self.get_cusums()
         else:
             self.cusums = {}
+        logging.info("Diagnosis Manager started ({0}) for {1}".format(self.url, self.requesting))
 
     def get_passive_thresholds(self):
         q = '''select flt, http, tcp, dim, cnt from {0} where url like '%{1}%' and probe_id = {2} '''\
@@ -79,7 +82,7 @@ class DiagnosisManager:
             return {'full_load_time_th': data[0], 'http_th': data[1], 'tcp_th': data[2],
                     'dim_th': data[3], 'count': data[4]}
         except IndexError:
-            print("Never browsed...")
+            logging.debug("Never browsed {0}-{1}".format(self.url, self.requesting))
             return None
 
     def get_cusums(self):
@@ -89,10 +92,10 @@ class DiagnosisManager:
                                                                                        self.url, self.requesting)
         res = self.db.execute_query(q)
         if len(res) == 0:
-            print("No cusums available for url {}: creating new ones.".format(self.url))
+            logging.info("No cusums available for {0} - {1}: creating new ones.".format(self.url, self.requesting))
             return dict.fromkeys(names)
         if len(res) > 1:
-            print("Got multiple values for url {}".format(self.url))
+            logging.warning("Got multiple values for url {0} - {1}".format(self.url, self.requesting))
         row = res[0]
         for idx, el in enumerate(row):
             dic = json.loads(el)
@@ -121,17 +124,17 @@ class DiagnosisManager:
                 q = '''update {0} set {1} = {2} where url = '{3}' and probe_id = {4}'''\
                     .format(CUSUM_TH_TABLE, k, "'" + json.dumps(d[k]) + "'", self.url, self.requesting)
                 self.db.execute_query(q)
-        print("Cusum table updated.")
+        logging.info("Cusum table updated.")
 
     def prepare_for_diagnosis(self, measurement):
         TRAINING = 100
         if not measurement.passive.sid:
-            print("sid not specified. Unable to run diagnosis.")
+            logging.error("sid not specified. Unable to run diagnosis: {0} - {1}.".format(self.url, self.requesting))
             return
 
         locals_th = self.get_passive_thresholds()
         if any([self.cusums[i] for i in self.cusums]):
-            print("Cusums loaded")
+            logging.info("Cusums loaded for {0} - {1}".format(self.url, self.requesting))
         # get current data for cusum update
 
         #trace = [x['trace'] for x in active if x['trace'] is not None][0]
@@ -147,7 +150,7 @@ class DiagnosisManager:
         tcp_time = sum([x['secondary_sum_syn'] for x in measurement.secondary])
 
         if not locals_th:
-            print("First time hitting {0}: using current values.".format(self.url))
+            logging.info("First time hitting {0} for {1}: using current values.".format(self.url, self.requesting))
             time_th = measurement.passive.full_load_time + 1000
             http_th = http_time + 50
             tcp_th = tcp_time + 50
@@ -238,6 +241,7 @@ class DiagnosisManager:
 
         self.db.execute_query(q)
         self.store_diagnosis_result(measurement, diagnosis)
+        logging.info("Diagnosis result stored {0} - {1}".format(self.url, self.requesting))
         return diagnosis
 
     def _check_network(self, active, diff):
@@ -289,5 +293,5 @@ class DiagnosisManager:
         q = "insert into {0} (sid, url, when_browsed, probe_id, diagnosis) values".format(RESULT_TABLE)
         q += " ({0}, '{1}', '{2}', {3}, '{4}')".format(sid, self.url, when, self.requesting, json.dumps(diagnosis))
         self.db.execute_query(q)
-        print("Diagnosis result saved.")
+        logging.info("Diagnosis result saved.")
 
