@@ -4,6 +4,8 @@ import socketserver
 import urllib.request
 from extract import Extractor
 from reasoner import Reasoner
+import json
+
 
 def check_url(url):
     try:
@@ -36,7 +38,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         r = Reasoner()
         res = r.diagnose(self.url)
         # just send back the same data, but upper-cased
-        answer = "{} \n".format(res)
+        answer = "{}".format(json.dumps(res))
         self.request.sendall(answer.encode())
 
 if __name__ == "__main__":
