@@ -35,6 +35,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             print('received:', jsondata)
             probe = jsondata['probe']
             url = jsondata['url']
+            globaldiag = jsondata['global']
         except:
             answer = "Unable to parse response"
             self.request.sendall(answer.encode())
@@ -47,7 +48,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
             return
 
         r = Reasoner()
-        res = r.diagnose(probe, url)
+        res = r.diagnose(probe, url, globaldiag)
         answer = "{}\n".format(json.dumps(res))
         self.request.sendall(answer.encode())
 
