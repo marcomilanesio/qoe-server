@@ -113,25 +113,6 @@ class Extractor:
     def close(self):
         self.dinodb.quit()
         
-'''
-url = 'www.lemonde.fr'
-res = []
-db = DinoDBConn(params, tabname)
-id_ = ['sid', 'probe_id', 'session_url', 'session_start'] 
-sessions_id = db.get_sessions_id(howmany=None)
-for id_session in sessions_id:
-    dic = {k:v for k,v in zip(id_, list(id_session))}
-    if re.search(url, dic['session_url']):
-        session = db.get_complete_session(dic)
-        res.append(session)
-#        for k,v in session.__dict__.items():
-#            if k not in ['attributes', '_check']:
-#                print(k, v)
-
-print(len(res))
-
-db.quit()
-'''
 if __name__ == "__main__":
     e = Extractor('www.google.com')
     res = e.extract(howmany=1)
