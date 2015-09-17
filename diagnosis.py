@@ -62,46 +62,48 @@ class DB:
 
 
 class DiagnosisManager:
-    def __init__(self, dbname, url, probe_id):
+    def __init__(self, dbname, url):
         self.url = url
         self.db = DB(dbname)
-        self.requesting = probe_id
-        self.passive_thresholds = self.get_passive_thresholds()
-        if self.passive_thresholds:
-           self.cusums = self.get_cusums()
-        else:
-            self.cusums = {}
-        logging.info("Diagnosis Manager started ({0}) for {1}".format(self.url, self.requesting))
+        logging.info("Diagnosis Manager started ({0})".format(self.url))
 
-    def get_diagnosed_sessions(self):
+    def get_data_for_probe(self, requestingprobe):
+        passive_thresholds = self.get_passive_thresholds(requestingprobe)
+        if passive_thresholds:
+            cusums = self.get_cusums(requestingprobe)
+        else:
+            cusums = {}
+        return passive_thresholds, cusums
+
+    def get_diagnosed_sessions(self, requestingprobe):
         q = '''select sid, url, when_browsed, probe_id, diagnosis from {0} where url like '%{1}%' and probe_id = {2}'''\
-            .format(RESULT_TABLE, self.url, self.requesting)
+            .format(RESULT_TABLE, self.url, requestingprobe)
         res = self.db.execute_query(q)
         return res
 
-    def get_passive_thresholds(self):
+    def get_passive_thresholds(self, requestingprobe):
         q = '''select flt, http, tcp, dim, cnt from {0} where url like '%{1}%' and probe_id = {2} '''\
-            .format(PASSIVE_TH_TABLE, self.url, self.requesting)
+            .format(PASSIVE_TH_TABLE, self.url, requestingprobe)
         try:
             res = self.db.execute_query(q)
             data = res[0]
             return {'full_load_time_th': data[0], 'http_th': data[1], 'tcp_th': data[2],
                     'dim_th': data[3], 'count': data[4]}
         except IndexError:
-            logging.debug("Never browsed {0}-{1}".format(self.url, self.requesting))
+            logging.debug("Never browsed {0}-{1}".format(self.url, requestingprobe))
             return None
 
-    def get_cusums(self):
+    def get_cusums(self, requestingprobe):
         cusums = {}
         names = ['cusumT1', 'cusumD1', 'cusumD2', 'cusumDH']
         q = '''select {0} from {1} where url like '%{2}%' and probe_id = {3}'''.format(','.join(names), CUSUM_TH_TABLE,
-                                                                                       self.url, self.requesting)
+                                                                                       self.url, requestingprobe)
         res = self.db.execute_query(q)
         if len(res) == 0:
-            logging.info("No cusums available for {0} - {1}: creating new ones.".format(self.url, self.requesting))
+            logging.info("No cusums available for {0} - {1}: creating new ones.".format(self.url, requestingprobe))
             return dict.fromkeys(names)
         if len(res) > 1:
-            logging.warning("Got multiple values for url {0} - {1}".format(self.url, self.requesting))
+            logging.warning("Got multiple values for url {0} - {1}".format(self.url, requestingprobe))
         row = res[0]
         for idx, el in enumerate(row):
             dic = json.loads(el)
@@ -109,41 +111,41 @@ class DiagnosisManager:
                                        var=dic['var'], count=dic['count'])
         return cusums
 
-    def insert_first_locals(self, flt, http, tcp, dim):
+    def insert_first_locals(self, requestingprobe, flt, http, tcp, dim):
         q = "insert into {0}(url, probe_id, flt, http, tcp, dim, cnt) values "\
             .format(PASSIVE_TH_TABLE)
-        q += "('{0}', {1}, {2}, {3}, {4}, {5}, 1)".format(self.url, self.requesting, flt, http, tcp, dim)
+        q += "('{0}', {1}, {2}, {3}, {4}, {5}, 1)".format(self.url, requestingprobe, flt, http, tcp, dim)
         self.db.execute_query(q)
 
-    def update_cusums(self, first=False):
-        keys = list(self.cusums.keys())
+    def update_cusums(self, requestingprobe, cusums, first=False):
+        keys = list(cusums.keys())
         d = dict.fromkeys(keys, None)
         for k in keys:
-            d[k] = self.cusums[k].__dict__
+            d[k] = cusums[k].__dict__
         if first:
             q = '''insert into {0} (url, probe_id, {1}) values ('{2}', {3},'''.format(CUSUM_TH_TABLE, ','.join(keys),
-                                                                                      self.url, self.requesting)
+                                                                                      self.url, requestingprobe)
             q += ','.join("'" + json.dumps(d[k]) + "'" for k in keys) + ')'
             self.db.execute_query(q)
         else:
-            for k, v in self.cusums.items():
+            for k, v in cusums.items():
                 q = '''update {0} set {1} = {2} where url = '{3}' and probe_id = {4}'''\
-                    .format(CUSUM_TH_TABLE, k, "'" + json.dumps(d[k]) + "'", self.url, self.requesting)
+                    .format(CUSUM_TH_TABLE, k, "'" + json.dumps(d[k]) + "'", self.url, requestingprobe)
                 self.db.execute_query(q)
-        #logging.info("Cusum table updated.")
+        # logging.info("Cusum table updated.")
 
-    def prepare_for_diagnosis(self, measurement):
+    def prepare_for_diagnosis(self, requestingprobe, measurement):
         TRAINING = 100
         if not measurement.passive.sid:
-            logging.error("sid not specified. Unable to run diagnosis: {0} - {1}.".format(self.url, self.requesting))
+            logging.error("sid not specified. Unable to run diagnosis: {0} - {1}.".format(self.url, requestingprobe))
             return
 
-        locals_th = self.get_passive_thresholds()
-        if any([self.cusums[i] for i in self.cusums]):
-            logging.info("Cusums loaded for {0} - {1}".format(self.url, self.requesting))
+        locals_th, cusums = self.get_data_for_probe(requestingprobe)
+        if any([cusums[i] for i in cusums]):
+            logging.info("Cusums loaded for {0} - {1}".format(self.url, requestingprobe))
         # get current data for cusum update
 
-        #trace = [x['trace'] for x in active if x['trace'] is not None][0]
+        # trace = [x['trace'] for x in active if x['trace'] is not None][0]
         trace = measurement.trace
         h1 = [x for x in trace if x['trace_hop_nr'] == 1][0]['trace_rtt_max']
         addr1 = [x for x in trace if x['trace_hop_nr'] == 1][0]['trace_ip_addr']
@@ -160,20 +162,20 @@ class DiagnosisManager:
         tcp_time = sum([x['secondary_sum_syn'] for x in measurement.secondary])
 
         if not locals_th:
-            logging.info("First time hitting {0} for {1}: using current values.".format(self.url, self.requesting))
+            logging.info("First time hitting {0} for {1}: using current values.".format(self.url, requestingprobe))
             time_th = measurement.passive.full_load_time + 1000
             http_th = http_time + 50
             tcp_th = tcp_time + 50
             dim_th = measurement.passive.page_dim + 5000
-            #rcv_th = sum([x['sum_rcv_time'] for x in browser]) + 50  # TODO add rcv_th to local_diag
-            self.insert_first_locals(time_th, http_th, tcp_th, dim_th)
+            # rcv_th = sum([x['sum_rcv_time'] for x in browser]) + 50  # TODO add rcv_th to local_diag
+            self.insert_first_locals(requestingprobe, time_th, http_th, tcp_th, dim_th)
         else:
             time_th = locals_th['full_load_time_th']
             dim_th = locals_th['dim_th']
             http_th = locals_th['http_th']
             tcp_th = locals_th['tcp_th']
 
-         # TODO: find a way to have threshold setting
+        # TODO: find a way to have threshold setting
         th_t1 = h1 + 0.1
         d1 = h2 - h1
         th_d1 = d1 + 0.2
@@ -193,22 +195,22 @@ class DiagnosisManager:
                          'th_dh': th_dh
                          }
 
-        if not any([self.cusums[i] for i in self.cusums]):
-            self.cusums['cusumT1'] = Cusum(name='cusumT1', th=h1, value=h1)
-            self.cusums['cusumD1'] = Cusum(name='cusumD1', th=d1, value=d1)
-            self.cusums['cusumD2'] = Cusum(name='cusumD2', th=d2, value=d2)
-            self.cusums['cusumDH'] = Cusum(name='cusumDH', th=dh, value=dh)
-            self.update_cusums(first=True)
+        if not any([cusums[i] for i in cusums]):
+            cusums['cusumT1'] = Cusum(name='cusumT1', th=h1, value=h1)
+            cusums['cusumD1'] = Cusum(name='cusumD1', th=d1, value=d1)
+            cusums['cusumD2'] = Cusum(name='cusumD2', th=d2, value=d2)
+            cusums['cusumDH'] = Cusum(name='cusumDH', th=dh, value=dh)
+            self.update_cusums(requestingprobe, cusums, first=True)
         else:
-            if self.cusums['cusumT1'].get_count() < TRAINING:
-                self.cusums['cusumT1'].compute(h1)
-            if self.cusums['cusumD1'].get_count() < TRAINING:
-                self.cusums['cusumD1'].compute(d1)
-            if self.cusums['cusumD2'].get_count() < TRAINING:
-                self.cusums['cusumD2'].compute(d2)
-            if self.cusums['cusumDH'].get_count() < TRAINING:
-                self.cusums['cusumDH'].compute(http_time - tcp_time)
-            self.update_cusums()
+            if cusums['cusumT1'].get_count() < TRAINING:
+                cusums['cusumT1'].compute(h1)
+            if cusums['cusumD1'].get_count() < TRAINING:
+                cusums['cusumD1'].compute(d1)
+            if cusums['cusumD2'].get_count() < TRAINING:
+                cusums['cusumD2'].compute(d2)
+            if cusums['cusumDH'].get_count() < TRAINING:
+                cusums['cusumDH'].compute(http_time - tcp_time)
+            self.update_cusums(requestingprobe, cusums)
 
         mem_th = cpu_th = 50
 
@@ -219,15 +221,15 @@ class DiagnosisManager:
                               'mem_th': mem_th,
                               'cpu_th': cpu_th}
 
-        return active_subset, passive_thresholds
+        return active_subset, passive_thresholds, cusums
 
-    def run_diagnosis(self, measurement):
+    def run_diagnosis(self, requestingprobe, measurement):
         diagnosis = OrderedDict({'result': None, 'details': None})
-        active_subset, passive_thresholds = self.prepare_for_diagnosis(measurement)
+        active_subset, passive_thresholds, cusums = self.prepare_for_diagnosis(requestingprobe, measurement)
         http_time = active_subset['http_time']
         tcp_time = active_subset['tcp_time']
-        if not (measurement.passive and measurement.trace and measurement.ping
-                and measurement.secondary and passive_thresholds):
+        if not (measurement.passive and measurement.trace and measurement.ping and measurement.secondary
+                and passive_thresholds):
             diagnosis['result'] = 'Error'
             diagnosis['details'] = 'Unable to retrieve data'
             return diagnosis
@@ -254,30 +256,30 @@ class DiagnosisManager:
                     diagnosis['result'] = 'No problem found'
                     diagnosis['details'] = "Unable to get more details"
             else:
-                diagnosis['result'], diagnosis['details'] = self._check_network(active_subset)
+                diagnosis['result'], diagnosis['details'] = self._check_network(active_subset, cusums)
 
         q = "update {0} set cnt = cnt + 1 where url like '%{1}%' and probe_id = {2}"\
-            .format(PASSIVE_TH_TABLE, self.url, self.requesting)
+            .format(PASSIVE_TH_TABLE, self.url, requestingprobe)
 
         self.db.execute_query(q)
-        self.store_diagnosis_result(measurement, diagnosis)
-        logging.info("Diagnosis result stored {0} - {1}".format(self.url, self.requesting))
+        self.store_diagnosis_result(requestingprobe, measurement, diagnosis)
+        logging.info("Diagnosis result stored {0} - {1}".format(self.url, requestingprobe))
         return diagnosis
 
-    def _check_network(self, active_subset):
+    def _check_network(self, active_subset, cusums):
         result = details = None
         gw_addr, gw_rtt = active_subset['hop1']['ip'], active_subset['hop1']['rtt']
         second_addr, second_rtt = active_subset['hop2']['ip'], active_subset['hop2']['rtt']
         third_addr, third_rtt = active_subset['hop3']['ip'], active_subset['hop3']['rtt']
 
-        if self.cusums['cusumT1'].compute(gw_rtt):
+        if cusums['cusumT1'].compute(gw_rtt):
             result = 'Local congestion (LAN/GW)'
             details = "cusum on RTT to 1st hop {0}".format(gw_addr)
         else:
             d1 = second_rtt - gw_rtt
             d2 = third_rtt - second_rtt
-            if self.cusums['cusumD1'].compute(d1):
-                if self.cusums['cusumD2'].compute(d2):
+            if cusums['cusumD1'].compute(d1):
+                if cusums['cusumD2'].compute(d2):
                     result = 'Network congestion'
                     details = "cusum on Delta1 [{0},{1}] and Delta2 [{1},{2}]".format(gw_addr, second_addr, third_addr)
                 else:
@@ -286,7 +288,7 @@ class DiagnosisManager:
 
         if not result:
             diff = active_subset['http_time'] - active_subset['tcp_time']
-            if self.cusums['cusumDH'].compute(diff):
+            if cusums['cusumDH'].compute(diff):
                 result = 'Remote Web Server'
                 details = "cusum on t_http - t_tcp"
             else:
@@ -295,10 +297,10 @@ class DiagnosisManager:
 
         return result, details
 
-    def store_diagnosis_result(self, measurement, diagnosis):
+    def store_diagnosis_result(self, requestingprobe, measurement, diagnosis):
         sid = measurement.passive.sid
         when = measurement.passive.session_start
         q = "insert into {0} (sid, url, when_browsed, probe_id, diagnosis) values".format(RESULT_TABLE)
-        q += " ({0}, '{1}', '{2}', {3}, '{4}')".format(sid, self.url, when, self.requesting, json.dumps(diagnosis))
+        q += " ({0}, '{1}', '{2}', {3}, '{4}')".format(sid, self.url, when, requestingprobe, json.dumps(diagnosis))
         self.db.execute_query(q)
 
