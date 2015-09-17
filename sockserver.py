@@ -16,7 +16,8 @@ def check_url(url):
         except:
             return False
     return True
-            
+
+
 class MyTCPHandler(socketserver.BaseRequestHandler):
     """
     The RequestHandler class for our server.
@@ -28,17 +29,26 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         # self.request is the TCP socket connected to the client
-        self.url = self.request.recv(1024).decode().strip()
-        print("{0} asked for {1}:".format(self.client_address[0], self.url))
-        if not check_url(self.url):
+        data = self.request.recv(1024).decode().strip()
+        try:
+            jsondata = json.loads(data)
+            print('received:', jsondata)
+            probe = jsondata['probe']
+            url = jsondata['url']
+        except:
+            answer = "Unable to parse response"
+            self.request.sendall(answer.encode())
+            return
+
+        print("{0} asked for [{1} : {2}]:".format(self.client_address[0], jsondata['probe'], jsondata['url']))
+        if not check_url(url):
             answer = "URL not valid\n"
             self.request.sendall(answer.encode())
             return
 
         r = Reasoner()
-        res = r.diagnose(self.url)
-        # just send back the same data, but upper-cased
-        answer = "{}".format(json.dumps(res))
+        res = r.diagnose(probe, url)
+        answer = "{}\n".format(json.dumps(res))
         self.request.sendall(answer.encode())
 
 if __name__ == "__main__":
