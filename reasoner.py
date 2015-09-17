@@ -16,9 +16,9 @@ class Result:
 
 class Reasoner:
     
-    def __init__(self, probe_id=1190855395):
+    def __init__(self):
         self.sessions_list = []
-        self.requesting = probe_id
+        self.requesting = None
 
     def extract_data_for_url(self, url):
         e = Extractor(url)
@@ -74,7 +74,8 @@ class Reasoner:
                 filtered.append(m)
         return filtered
 
-    def diagnose(self, url):
+    def diagnose(self, probe_id, url):
+        self.requesting = probe_id
         dm = DiagnosisManager(dbname, url, self.requesting)
         already_diagnosed = dm.get_diagnosed_sessions()
 
@@ -90,14 +91,11 @@ class Reasoner:
             for m in filtered:
                 diag = dm.run_diagnosis(m)
                 result.append(Result(m.passive.sid, self.requesting, url, m.passive.session_start, diag).__dict__)
-            if result:
-                for el in result:
-                    print(el.__dict__)
-            else:
-                print("boh?")
         return result
 
 if __name__ == "__main__":
+    url = 'www.google.com'
+    probe = 1190855395
     r = Reasoner()
-    res = r.diagnose('www.google.com')
+    res = r.diagnose(probe, url)
     print(res)
