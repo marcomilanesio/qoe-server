@@ -300,7 +300,7 @@ class DiagnosisManager:
     def store_diagnosis_result(self, requestingprobe, measurement, diagnosis):
         sid = measurement.passive.sid
         when = measurement.passive.session_start
-        q = "insert into {0} (sid, url, when_browsed, probe_id, diagnosis) values".format(RESULT_TABLE)
+        q = "insert or ignore into {0} (sid, url, when_browsed, probe_id, diagnosis) values".format(RESULT_TABLE)
         q += " ({0}, '{1}', '{2}', {3}, '{4}')".format(sid, self.url, when, requestingprobe, json.dumps(diagnosis))
         self.db.execute_query(q)
 
