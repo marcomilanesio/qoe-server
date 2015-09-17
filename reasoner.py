@@ -5,6 +5,15 @@ from extract import Extractor
 dbname = 'reasoner.db'
 
 
+class Result:
+    def __init__(self, sid, probe_id, session_url, session_start, diagnosis):
+        self.sid = sid
+        self.probe_id = probe_id
+        self.session_url = session_url
+        self.session_start = session_start
+        self.diagnosis = diagnosis
+
+
 class Reasoner:
     
     def __init__(self, probe_id=1190855395):
@@ -14,6 +23,17 @@ class Reasoner:
     def extract_data_for_url(self, url):
         e = Extractor(url)
         self.sessions_list = e.extract()
+
+    def build_from_old(self, already):
+        res = []
+        for tup in already:
+            sid = tup[0]
+            url = tup[1]
+            session_start = tup[2]
+            probe_id = tup[3]
+            diag = tup[4]
+            res.append(Result(sid, probe_id, url, session_start, diag).__dict__)
+        return res
 
     @staticmethod
     def _process_passive(dic):
@@ -47,32 +67,37 @@ class Reasoner:
             if m.passive.probe_id != self.requesting:
                 continue
             for tup in already_diagnosed:
-                if m.passive.sid == tup[0] and str(m.passive.session_start) == tup[1]:
+                # tup = (sid, url, when_browsed, probe_id, diagnosis)
+                if m.passive.sid == tup[0] and str(m.passive.session_start) == tup[2]:
                     break
             else:
                 filtered.append(m)
         return filtered
 
     def diagnose(self, url):
-        self.extract_data_for_url(url)
         dm = DiagnosisManager(dbname, url, self.requesting)
+        already_diagnosed = dm.get_diagnosed_sessions()
+
+        self.extract_data_for_url(url)
         measurements = self.gather_measurements()  # all the measurements for a single url
         result = []
-        already_diagnosed = dm.get_diagnosed_sessions()
+
         filtered = self.filterout_diagnosed(measurements, already_diagnosed)
         if not filtered:
             print("no new sessions to diagnose")
-            return
-        for m in filtered:
-            diag = dm.run_diagnosis(m)
-            result.append((self.requesting, m.passive.sid, m.passive.session_start, url, diag))
-        if result:
-            for el in result:
-                print(el)
+            result = self.build_from_old(already_diagnosed)
         else:
-            print("no new sessions found.")
-
+            for m in filtered:
+                diag = dm.run_diagnosis(m)
+                result.append(Result(m.passive.sid, self.requesting, url, m.passive.session_start, diag).__dict__)
+            if result:
+                for el in result:
+                    print(el.__dict__)
+            else:
+                print("boh?")
+        return result
 
 if __name__ == "__main__":
     r = Reasoner()
-    r.diagnose('www.google.com')
+    res = r.diagnose('www.google.com')
+    print(res)
