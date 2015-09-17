@@ -10,7 +10,7 @@ class Result:
         self.sid = sid
         self.probe_id = probe_id
         self.session_url = session_url
-        self.session_start = session_start
+        self.session_start = str(session_start)
         self.diagnosis = diagnosis
 
 
@@ -18,7 +18,6 @@ class Reasoner:
     
     def __init__(self):
         self.sessions_list = []
-        self.requesting = None
 
     def extract_data_for_url(self, url):
         e = Extractor(url)
@@ -61,10 +60,10 @@ class Reasoner:
             measurements.append(metric)
         return measurements
 
-    def filterout_diagnosed(self, measurements, already_diagnosed):
+    def filterout_diagnosed(self, requestingprobe, measurements, already_diagnosed):
         filtered = []
         for m in measurements:
-            if m.passive.probe_id != self.requesting:
+            if m.passive.probe_id != requestingprobe:
                 continue
             for tup in already_diagnosed:
                 # tup = (sid, url, when_browsed, probe_id, diagnosis)
@@ -74,28 +73,38 @@ class Reasoner:
                 filtered.append(m)
         return filtered
 
-    def diagnose(self, probe_id, url):
-        self.requesting = probe_id
-        dm = DiagnosisManager(dbname, url, self.requesting)
-        already_diagnosed = dm.get_diagnosed_sessions()
+    def diagnose(self, probe_id, url, globaldiag=False):
+        dm = DiagnosisManager(dbname, url)
+        already_diagnosed = dm.get_diagnosed_sessions(probe_id)
 
         self.extract_data_for_url(url)
         measurements = self.gather_measurements()  # all the measurements for a single url
         result = []
 
-        filtered = self.filterout_diagnosed(measurements, already_diagnosed)
-        if not filtered:
-            print("no new sessions to diagnose")
-            result = self.build_from_old(already_diagnosed)
+        filtered = self.filterout_diagnosed(probe_id, measurements, already_diagnosed)
+        if not globaldiag:
+            if not filtered:
+                print("no new sessions to diagnose")
+                result = self.build_from_old(already_diagnosed)
+            else:
+                for m in filtered:
+                    diag = dm.run_diagnosis(probe_id, m)
+                    result.append(Result(m.passive.sid, probe_id, url, m.passive.session_start, diag).__dict__)
         else:
-            for m in filtered:
-                diag = dm.run_diagnosis(m)
-                result.append(Result(m.passive.sid, self.requesting, url, m.passive.session_start, diag).__dict__)
+            # TODO global diagnosis here
+            pass
+            # result = self.global_diagnose(url, measurements)
         return result
+
+    # def global_diagnose(self, url, measurements):
+    #    probes = list(set([m.passive.probe_id for m in measurements]))
+    #    for probeid in probes:
+    #        already_diagnosed = dm.get_diagnosed_sessions(probeid)
+    #    print(probes)
 
 if __name__ == "__main__":
     url = 'www.google.com'
     probe = 1190855395
     r = Reasoner()
-    res = r.diagnose(probe, url)
+    res = r.diagnose(probe, url, globaldiag=True)
     print(res)
