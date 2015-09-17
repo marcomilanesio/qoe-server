@@ -18,6 +18,7 @@ class Reasoner:
     
     def __init__(self):
         self.sessions_list = []
+        self.dm = None
 
     def extract_data_for_url(self, url):
         e = Extractor(url)
@@ -74,8 +75,8 @@ class Reasoner:
         return filtered
 
     def diagnose(self, probe_id, url, globaldiag=False):
-        dm = DiagnosisManager(dbname, url)
-        already_diagnosed = dm.get_diagnosed_sessions(probe_id)
+        self.dm = DiagnosisManager(dbname, url)
+        already_diagnosed = self.dm.get_diagnosed_sessions(probe_id)
 
         self.extract_data_for_url(url)
         measurements = self.gather_measurements()  # all the measurements for a single url
@@ -88,19 +89,20 @@ class Reasoner:
                 result = self.build_from_old(already_diagnosed)
             else:
                 for m in filtered:
-                    diag = dm.run_diagnosis(probe_id, m)
+                    diag = self.dm.run_diagnosis(probe_id, m)
                     result.append(Result(m.passive.sid, probe_id, url, m.passive.session_start, diag).__dict__)
         else:
-            # TODO global diagnosis here
-            pass
-            # result = self.global_diagnose(url, measurements)
+            result = self.global_diagnose(url, measurements)
         return result
 
-    # def global_diagnose(self, url, measurements):
-    #    probes = list(set([m.passive.probe_id for m in measurements]))
-    #    for probeid in probes:
-    #        already_diagnosed = dm.get_diagnosed_sessions(probeid)
-    #    print(probes)
+    def global_diagnose(self, url, measurements):
+        result = []
+        for m in measurements:
+            probe_id = m.passive.probe_id
+            diag = self.dm.run_diagnosis(probe_id, m)
+            result.append(Result(m.passive.sid, probe_id, url, m.passive.session_start, diag).__dict__)
+        return result
+
 
 if __name__ == "__main__":
     url = 'www.google.com'
