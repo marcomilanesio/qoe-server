@@ -75,11 +75,11 @@ class Reasoner:
         return filtered
 
     def diagnose(self, probe_id, url, globaldiag=False):
-        self.dm = DiagnosisManager(dbname, url)
+        self.dm = DiagnosisManager(url)
         already_diagnosed = self.dm.get_diagnosed_sessions(probe_id)
-
         self.extract_data_for_url(url)
         measurements = self.gather_measurements()  # all the measurements for a single url
+
         result = []
 
         filtered = self.filterout_diagnosed(probe_id, measurements, already_diagnosed)
@@ -96,12 +96,13 @@ class Reasoner:
         return result
 
     def global_diagnose(self, url, measurements):
-        result = []
-        for m in measurements:
-            probe_id = m.passive.probe_id
-            diag = self.dm.run_diagnosis(probe_id, m)
-            result.append(Result(m.passive.sid, probe_id, url, m.passive.session_start, diag).__dict__)
-        return result
+        self.dm.global_diagnosis(measurements)
+        #result = []
+        #for m in measurements:
+        #    probe_id = m.passive.probe_id
+        #    diag = self.dm.run_diagnosis(probe_id, m)
+        #    result.append(Result(m.passive.sid, probe_id, url, m.passive.session_start, diag).__dict__)
+        #return result
 
 
 if __name__ == "__main__":
@@ -109,4 +110,4 @@ if __name__ == "__main__":
     probe = 1190855395
     r = Reasoner()
     res = r.diagnose(probe, url, globaldiag=True)
-    print(res)
+    #print(res)
