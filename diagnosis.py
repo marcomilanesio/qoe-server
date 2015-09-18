@@ -320,6 +320,9 @@ class DiagnosisManager:
                     servers[sec['secondary_ip']]['http_time'].append(sec['secondary_sum_http'])
                     servers[sec['secondary_ip']]['tcp_time'].append(sec['secondary_sum_syn'])
         #print(servers)
-        analysis_modules.analyze_traces(traces)
+        trace_analysis = analysis_modules.analyze_traces(traces)
+        print(trace_analysis)
+        # TODO webserverpart
+        print(servers)
         #print(len(dates), len(traces), len(http_times), len(tcp_times))
         #print(len(dates), len(traces), len(secondaries))
