@@ -35,10 +35,11 @@ class DinoDBConn:
 
     def get_sessions_id(self, howmany=None):
         if not howmany:
-             q = '''select distinct sid, probe_id, session_url, session_start from {}'''.format(self.tabname)
+             q = '''select distinct sid, probe_id, session_url, session_start from {}
+                    order by session_start asc'''.format(self.tabname)
         else:
-             q = '''select distinct sid, probe_id, session_url, session_start from {0} limit {1}'''.format(self.tabname,
-                                                                                                           int(howmany))
+             q = '''select distinct sid, probe_id, session_url, session_start from {0} limit {1}
+                    order by session_start asc'''.format(self.tabname, int(howmany))
         return self.query(q)
 
     def get_complete_session(self, dic): 
