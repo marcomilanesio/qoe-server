@@ -7,6 +7,8 @@ from collections import OrderedDict
 import sqlite3
 import re
 import os
+import analysis_modules
+
 
 DBNAME = 'reasoner.db'
 PASSIVE_TH_TABLE = 'passive_threshold'
@@ -17,12 +19,12 @@ logging.basicConfig(filename='diagnosis.log', format='%(asctime)s - %(levelname)
 
 
 class DB:
-    def __init__(self, dbname):
-        if not os.path.isfile(dbname):
-            self.conn = sqlite3.connect(dbname)
+    def __init__(self):
+        if not os.path.isfile(DBNAME):
+            self.conn = sqlite3.connect(DBNAME)
             self.create_tables()
         else:
-            self.conn = sqlite3.connect(dbname)
+            self.conn = sqlite3.connect(DBNAME)
 
     def create_tables(self):
         q = '''create table if not exists {0} (url TEXT, probe_id INT, flt INT, http INT, tcp INT, dim INT, cnt INT,
@@ -62,9 +64,9 @@ class DB:
 
 
 class DiagnosisManager:
-    def __init__(self, dbname, url):
+    def __init__(self, url):
         self.url = url
-        self.db = DB(dbname)
+        self.db = DB()
         logging.info("Diagnosis Manager started ({0})".format(self.url))
 
     def get_data_for_probe(self, requestingprobe):
@@ -304,3 +306,20 @@ class DiagnosisManager:
         q += " ({0}, '{1}', '{2}', {3}, '{4}')".format(sid, self.url, when, requestingprobe, json.dumps(diagnosis))
         self.db.execute_query(q)
 
+    def global_diagnosis(self, measurements):
+        servers = {}
+        dates = [m.passive.session_start for m in measurements]
+        traces = [m.trace for m in measurements]
+        secondaries = [m.secondary for m in measurements]
+        for list_ in secondaries:
+            for sec in list_:
+                if sec['secondary_ip'] not in servers:
+                    servers[sec['secondary_ip']] = {'http_time': [sec['secondary_sum_http']],
+                                                    'tcp_time': [sec['secondary_sum_syn']]}
+                else:
+                    servers[sec['secondary_ip']]['http_time'].append(sec['secondary_sum_http'])
+                    servers[sec['secondary_ip']]['tcp_time'].append(sec['secondary_sum_syn'])
+        #print(servers)
+        analysis_modules.analyze_traces(traces)
+        #print(len(dates), len(traces), len(http_times), len(tcp_times))
+        #print(len(dates), len(traces), len(secondaries))
