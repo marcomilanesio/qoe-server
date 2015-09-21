@@ -335,9 +335,8 @@ class DiagnosisManager:
                 else:
                     servers[sec['secondary_ip']]['http_time'].append(sec['secondary_sum_http'])
                     servers[sec['secondary_ip']]['tcp_time'].append(sec['secondary_sum_syn'])
-        #print(servers)
+
         trace_analysis = analysis_modules.analyze_traces(traces)
-        # print(trace_analysis)
         # TODO webserverpart
         problematic_ip = {}
         to_save = {}
@@ -354,11 +353,9 @@ class DiagnosisManager:
                     print("{0} showed problems (diff = {1}".format(ip, dic['http_time'] - dic['tcp_time']))
                     break
                 to_save[ip] = cusum_gl
-        print(problematic_ip)
+
+        q = '''insert or ignore into {} (name, url, cusum) values '''.format(GLOBAL_CUSUM)
         for k, v in to_save.items():
-            print(k, v.__dict__)
-
-
-
-        #print(len(dates), len(traces), len(http_times), len(tcp_times))
-        #print(len(dates), len(traces), len(secondaries))
+            tmp = q + "('{0}', '{1}', '{2}')".format(ip, self.url, json.dumps(v.__dict__))
+            self.db.execute_query(tmp)
+        return trace_analysis, problematic_ip

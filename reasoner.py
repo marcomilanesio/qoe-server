@@ -96,13 +96,7 @@ class Reasoner:
         return result
 
     def global_diagnose(self, url, measurements):
-        self.dm.global_diagnosis(measurements)
-        #result = []
-        #for m in measurements:
-        #    probe_id = m.passive.probe_id
-        #    diag = self.dm.run_diagnosis(probe_id, m)
-        #    result.append(Result(m.passive.sid, probe_id, url, m.passive.session_start, diag).__dict__)
-        #return result
+        trace_analysis, ws_check = self.dm.global_diagnosis(measurements)
 
 
 if __name__ == "__main__":
