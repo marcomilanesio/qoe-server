@@ -14,6 +14,7 @@ DBNAME = 'reasoner.db'
 PASSIVE_TH_TABLE = 'passive_threshold'
 CUSUM_TH_TABLE = 'cusum_threshold'
 RESULT_TABLE = 'diagnosis'
+GLOBAL_CUSUM = 'global_cusum'
 
 logging.basicConfig(filename='diagnosis.log', format='%(asctime)s - %(levelname)s: %(message)s', level=logging.DEBUG)
 
@@ -35,6 +36,9 @@ class DB:
         self.execute_query(q)
         q = '''CREATE TABLE IF NOT EXISTS {0} (sid INT, url TEXT, when_browsed datetime, probe_id INT, diagnosis TEXT,
               unique(url, when_browsed, probe_id))'''.format(RESULT_TABLE)
+        self.execute_query(q)
+        q = '''CREATE TABLE IF NOT EXISTS {0} (name TEXT, url TEXT, cusum TEXT, unique(name, url, cusum))'''\
+            .format(GLOBAL_CUSUM)
         self.execute_query(q)
 
     def execute_query(self, query, tup=None):
@@ -112,6 +116,18 @@ class DiagnosisManager:
             cusums[names[idx]] = Cusum(name=dic['name'], th=dic['th'], value=dic['cusum'], mean=dic['mean'],
                                        var=dic['var'], count=dic['count'])
         return cusums
+
+    def get_global_cusum(self, ip):
+        q = '''select cusum from global_cusum where name = '{0}' and url like '%{1}%' '''.format(ip, self.url)
+        res = self.db.execute_query(q)
+        if len(res) == 0:
+            logging.info("no global cusum for ({0} - {1}): creating new one.".format(ip, self.url))
+            cusum = None
+        else:
+            dic = json.loads(res[0])
+            cusum = Cusum(name=dic['name'], th=dic['th'], value=dic['cusum'], mean=dic['mean'],
+                          var=dic['var'], count=dic['count'])
+        return cusum
 
     def insert_first_locals(self, requestingprobe, flt, http, tcp, dim):
         q = "insert into {0}(url, probe_id, flt, http, tcp, dim, cnt) values "\
@@ -321,8 +337,28 @@ class DiagnosisManager:
                     servers[sec['secondary_ip']]['tcp_time'].append(sec['secondary_sum_syn'])
         #print(servers)
         trace_analysis = analysis_modules.analyze_traces(traces)
-        print(trace_analysis)
+        # print(trace_analysis)
         # TODO webserverpart
-        print(servers)
+        problematic_ip = {}
+        to_save = {}
+        for ip, dic in servers.items():
+            cusum_gl = self.get_global_cusum(ip)
+            if not cusum_gl:
+                starting_th = dic['http_time'][0] - dic['tcp_time'][0] + 0.5
+                cusum_gl = Cusum(name=ip, th=starting_th)
+
+            for x, y in zip(dic['http_time'], dic['tcp_time']):
+                res = cusum_gl.compute(x-y)
+                if res:
+                    problematic_ip[ip] = cusum_gl
+                    print("{0} showed problems (diff = {1}".format(ip, dic['http_time'] - dic['tcp_time']))
+                    break
+                to_save[ip] = cusum_gl
+        print(problematic_ip)
+        for k, v in to_save.items():
+            print(k, v.__dict__)
+
+
+
         #print(len(dates), len(traces), len(http_times), len(tcp_times))
         #print(len(dates), len(traces), len(secondaries))
