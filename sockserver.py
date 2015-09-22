@@ -4,7 +4,7 @@ import socketserver
 import urllib.request
 import json
 
-from qoe_reasoner.reasoner import Reasoner
+from webqoe.reasoner import Reasoner
 
 
 def check_url(url):

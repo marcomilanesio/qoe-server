@@ -25,7 +25,7 @@ import argparse
 from datetime import datetime
 # import json
 # import http.client
-from .qoe_reasoner.reasoner import Reasoner
+from .webqoe.reasoner import Reasoner
 
 pri = os.getenv('MPLANE_RI')
 if pri is None:
