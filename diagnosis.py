@@ -36,7 +36,7 @@ class DB:
         q = '''CREATE TABLE IF NOT EXISTS {0} (sid INT, url TEXT, when_browsed datetime, probe_id INT, diagnosis TEXT,
               unique(url, when_browsed, probe_id))'''.format(RESULT_TABLE)
         self.execute_query(q)
-        q = '''CREATE TABLE IF NOT EXISTS {0} (name TEXT, url TEXT, cusum TEXT, unique(name, url, cusum))'''\
+        q = '''CREATE TABLE IF NOT EXISTS {0} (name TEXT, url TEXT, cusum TEXT, unique(name, url))'''\
             .format(GLOBAL_CUSUM)
         self.execute_query(q)
 
@@ -322,12 +322,26 @@ class DiagnosisManager:
         self.db.execute_query(q)
 
     def global_diagnosis(self, measurements):
-        diag = {'trace': None, 'ws': None, 'problems': []}
+        all_probes = {}
+        for m in measurements:
+            singleprobediagnosis = self.run_diagnosis(m.passive.probe_id, m)
+            try:
+                all_probes[m.passive.probe_id].append((str(m.passive.session_start), singleprobediagnosis))
+            except KeyError:
+                all_probes[m.passive.probe_id] = [(str(m.passive.session_start), singleprobediagnosis)]
+
+        diag = {'trace': None, 'ws': None, 'problems': [], 'all': all_probes}
         servers = {}
         dates = [m.passive.session_start for m in measurements]
         traces = [m.trace for m in measurements]
+        trace_analysis = analysis_modules.analyze_traces(traces)
+
+        diag['trace'] = trace_analysis
+
         secondaries = [m.secondary for m in measurements]
-        for list_ in secondaries:
+        # assert len(dates) == len(secondaries)
+        for d, list_ in zip(dates, secondaries):
+            date = str(d)
             for sec in list_:
                 if sec['secondary_ip'] not in servers:
                     servers[sec['secondary_ip']] = {'http_time': [sec['secondary_sum_http']],
@@ -335,9 +349,6 @@ class DiagnosisManager:
                 else:
                     servers[sec['secondary_ip']]['http_time'].append(sec['secondary_sum_http'])
                     servers[sec['secondary_ip']]['tcp_time'].append(sec['secondary_sum_syn'])
-
-        trace_analysis = analysis_modules.analyze_traces(traces)
-        diag['trace'] = trace_analysis
 
         problematic_ip = {}
         to_save = {}
@@ -353,7 +364,7 @@ class DiagnosisManager:
                 if res:
                     problematic_ip[ip] = cusum_gl
                     diag['problems'].append(ip)
-                    print("{0} showed problems (diff = {1}".format(ip, dic['http_time'] - dic['tcp_time']))
+                    print("{0} showed problems (diff = {1})".format(ip, x - y))
                     break
                 to_save[ip] = cusum_gl
                 try:
