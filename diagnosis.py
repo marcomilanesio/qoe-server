@@ -8,7 +8,6 @@ import sqlite3
 import re
 import os
 import analysis_modules
-import operator
 
 DBNAME = 'reasoner.db'
 PASSIVE_TH_TABLE = 'passive_threshold'
@@ -339,7 +338,7 @@ class DiagnosisManager:
 
         trace_analysis = analysis_modules.analyze_traces(traces)
         diag['trace'] = trace_analysis
-        # TODO webserverpart
+
         problematic_ip = {}
         to_save = {}
         counters = {}
@@ -367,6 +366,6 @@ class DiagnosisManager:
             tmp = q + "('{0}', '{1}', '{2}')".format(k, self.url, json.dumps(v.__dict__))
             self.db.execute_query(tmp)
 
-        diag['ws'] = sorted(counters.items(), key=operator.itemgetter(1), reverse=True)[:5]  # Top 5
+        diag['ws'] = analysis_modules.top_five_secondary(counters, None)
 
         return diag

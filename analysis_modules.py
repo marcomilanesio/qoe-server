@@ -1,4 +1,5 @@
 import numpy
+import operator
 
 def analyze_traces(traces):
     r = {}
@@ -28,3 +29,7 @@ def analyze_traces(traces):
         res[k].update({'no_info': count})
 
     return res
+
+
+def top_five_secondary(dic, traces):
+    return sorted(dic.items(), key=operator.itemgetter(1), reverse=True)[:5]  # Top 5
