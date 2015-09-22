@@ -20,13 +20,13 @@ def analyze_traces(traces):
             count += len(v['rtt'])
             continue
         res[k] = {'hits': len(v['hop_nr']), 'hop_nr': list(set(v['hop_nr'])),
-                  'stats': {'mean': numpy.mean(v['rtt']),
-                            'std': numpy.std(v['rtt']),
-                            'min': numpy.min(v['rtt']),
-                            'max': numpy.max(v['rtt'])
+                  'stats': {'mean': numpy.around(numpy.mean(v['rtt']), decimals=4),
+                            'std': numpy.around(numpy.std(v['rtt']), decimals=4),
+                            'min': numpy.around(numpy.min(v['rtt']), decimals=4),
+                            'max': numpy.around(numpy.max(v['rtt']), decimals=4)
                             }
                   }
-        res[k].update({'no_info': count})
+        # res[k].update({'no_info': count})
 
     return res
 

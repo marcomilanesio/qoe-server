@@ -51,6 +51,7 @@ class MyTCPHandler(socketserver.BaseRequestHandler):
         res = r.diagnose(probe, url, globaldiag)
         answer = "{}\n".format(json.dumps(res))
         self.request.sendall(answer.encode())
+        print("sent.")
 
 if __name__ == "__main__":
     HOST, PORT = "", 50007
