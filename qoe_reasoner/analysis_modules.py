@@ -1,5 +1,8 @@
+#!/usr/bin/python3
+
 import numpy
 import operator
+
 
 def analyze_traces(traces):
     r = {}

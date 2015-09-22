@@ -2,9 +2,9 @@
 
 import socketserver
 import urllib.request
-from extract import Extractor
-from reasoner import Reasoner
 import json
+
+from qoe_reasoner.reasoner import Reasoner
 
 
 def check_url(url):

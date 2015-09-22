@@ -1,6 +1,7 @@
 from collections import namedtuple
-from diagnosis import DiagnosisManager
-from extract import Extractor
+
+from .diagnosis import DiagnosisManager
+from .extract import Extractor
 
 dbname = 'reasoner.db'
 

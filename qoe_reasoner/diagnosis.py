@@ -2,12 +2,14 @@
 
 import logging
 import json
-from cusum import Cusum
 from collections import OrderedDict
 import sqlite3
 import re
 import os
-import analysis_modules
+
+from .cusum import Cusum
+from .analysis_modules import analyze_traces, top_five_secondary
+
 
 DBNAME = 'reasoner.db'
 PASSIVE_TH_TABLE = 'passive_threshold'
@@ -334,7 +336,7 @@ class DiagnosisManager:
         servers = {}
         dates = [m.passive.session_start for m in measurements]
         traces = [m.trace for m in measurements]
-        trace_analysis = analysis_modules.analyze_traces(traces)
+        trace_analysis = analyze_traces(traces)
 
         diag['trace'] = trace_analysis
 
@@ -377,6 +379,6 @@ class DiagnosisManager:
             tmp = q + "('{0}', '{1}', '{2}')".format(k, self.url, json.dumps(v.__dict__))
             self.db.execute_query(tmp)
 
-        diag['ws'] = analysis_modules.top_five_secondary(counters, None)
+        diag['ws'] = top_five_secondary(counters, None)
 
         return diag
