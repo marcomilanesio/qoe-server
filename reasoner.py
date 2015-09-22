@@ -96,7 +96,9 @@ class Reasoner:
         return result
 
     def global_diagnose(self, url, measurements):
-        trace_analysis, ws_check = self.dm.global_diagnosis(measurements)
+        diag = self.dm.global_diagnosis(measurements)
+        return diag
+
 
 
 if __name__ == "__main__":

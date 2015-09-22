@@ -8,7 +8,7 @@ import sqlite3
 import re
 import os
 import analysis_modules
-
+import operator
 
 DBNAME = 'reasoner.db'
 PASSIVE_TH_TABLE = 'passive_threshold'
@@ -124,7 +124,7 @@ class DiagnosisManager:
             logging.info("no global cusum for ({0} - {1}): creating new one.".format(ip, self.url))
             cusum = None
         else:
-            dic = json.loads(res[0])
+            dic = json.loads(res[0][0])
             cusum = Cusum(name=dic['name'], th=dic['th'], value=dic['cusum'], mean=dic['mean'],
                           var=dic['var'], count=dic['count'])
         return cusum
@@ -323,6 +323,7 @@ class DiagnosisManager:
         self.db.execute_query(q)
 
     def global_diagnosis(self, measurements):
+        diag = {'trace': None, 'ws': None, 'problems': []}
         servers = {}
         dates = [m.passive.session_start for m in measurements]
         traces = [m.trace for m in measurements]
@@ -337,9 +338,11 @@ class DiagnosisManager:
                     servers[sec['secondary_ip']]['tcp_time'].append(sec['secondary_sum_syn'])
 
         trace_analysis = analysis_modules.analyze_traces(traces)
+        diag['trace'] = trace_analysis
         # TODO webserverpart
         problematic_ip = {}
         to_save = {}
+        counters = {}
         for ip, dic in servers.items():
             cusum_gl = self.get_global_cusum(ip)
             if not cusum_gl:
@@ -350,12 +353,20 @@ class DiagnosisManager:
                 res = cusum_gl.compute(x-y)
                 if res:
                     problematic_ip[ip] = cusum_gl
+                    diag['problems'].append(ip)
                     print("{0} showed problems (diff = {1}".format(ip, dic['http_time'] - dic['tcp_time']))
                     break
                 to_save[ip] = cusum_gl
+                try:
+                    counters[ip] += len(dic['http_time'])
+                except KeyError:
+                    counters[ip] = len(dic['http_time'])
 
         q = '''insert or ignore into {} (name, url, cusum) values '''.format(GLOBAL_CUSUM)
         for k, v in to_save.items():
-            tmp = q + "('{0}', '{1}', '{2}')".format(ip, self.url, json.dumps(v.__dict__))
+            tmp = q + "('{0}', '{1}', '{2}')".format(k, self.url, json.dumps(v.__dict__))
             self.db.execute_query(tmp)
-        return trace_analysis, problematic_ip
+
+        diag['ws'] = sorted(counters.items(), key=operator.itemgetter(1), reverse=True)[:5]  # Top 5
+
+        return diag
