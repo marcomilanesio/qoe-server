@@ -162,7 +162,7 @@ class WebQoEReasoner(object):
 
         self._when = mplane.model.When(when)
         params = params
-
+        print("params: {}".format(params))
         # Now invoke it
         self._client.invoke_capability(cap.get_token(), self._when, params, None)
 
@@ -188,6 +188,8 @@ if __name__ == "__main__":
                                      WebQoE Use Case")
     parser.add_argument('--config', metavar="config-file",
                         help="Configuration file")
+    parser.add_argument('--url', dest='url', metavar="destination.url",
+                        help="url to diagnose")
     args = parser.parse_args()
 
     # Read the configuration file, if given
@@ -205,5 +207,5 @@ if __name__ == "__main__":
     # run the reasoner
     # signal.signal(signal.SIGINT, signal_handler)
     cpr = WebQoEReasoner(config)
-    params = {}
+    params = {'destination.url': args.url}
     cpr.do_runcap(capspec='webqoe-diagnose', when='now + 1s / 1s', params=params)

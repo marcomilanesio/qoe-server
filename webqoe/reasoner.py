@@ -77,21 +77,27 @@ class Reasoner:
 
     def diagnose(self, probe_id, url, globaldiag=False):
         self.dm = DiagnosisManager(url)
-        already_diagnosed = self.dm.get_diagnosed_sessions(probe_id)
         self.extract_data_for_url(url)
         measurements = self.gather_measurements()  # all the measurements for a single url
 
+        if probe_id is not None:
+            already_diagnosed = self.dm.get_diagnosed_sessions(probe_id)
+            filtered = self.filterout_diagnosed(probe_id, measurements, already_diagnosed)
+        else:
+            already_diagnosed = None
+            filtered = None
+
         result = []
 
-        filtered = self.filterout_diagnosed(probe_id, measurements, already_diagnosed)
         if not globaldiag:
             if not filtered:
                 print("no new sessions to diagnose")
                 result = self.build_from_old(already_diagnosed)
             else:
-                for m in filtered:
-                    diag = self.dm.run_diagnosis(probe_id, m)
-                    result.append(Result(m.passive.sid, probe_id, url, m.passive.session_start, diag).__dict__)
+                if filtered:
+                    for m in filtered:
+                        diag = self.dm.run_diagnosis(probe_id, m)
+                        result.append(Result(m.passive.sid, probe_id, url, m.passive.session_start, diag).__dict__)
         else:
             result = self.global_diagnose(url, measurements)
         return result

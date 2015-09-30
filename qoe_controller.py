@@ -92,6 +92,7 @@ class globalDiagnoseService(mplane.scheduler.Service):
         print("specification {0}: start = {1} end = {2}".format(spec._label, start_time, end_time))
 
         res = mplane.model.Result(specification=spec)
+        print(res)
         res.set_when(mplane.model.When(a=start_time, b=end_time))
 
         labels = ["trace", "ws", "problems", "all"]
